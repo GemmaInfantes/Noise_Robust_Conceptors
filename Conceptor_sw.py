@@ -2,14 +2,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
-from itertools import product, combinations
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.colors import LightSource
 from utils.rnn_utils import rnn_params
 from utils.rnn_utils import forward_rnn
 from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
-
+from utils.utils import draw_transparent_box
 
 #parameters that we can tune from terminal
 parser = argparse.ArgumentParser()
@@ -155,8 +153,13 @@ plt.grid(True, linestyle=':', linewidth=0.8, alpha=0.7)
 
 # Tight layout
 plt.tight_layout()
+# plt.savefig(
+#            "plots/Figure2b.pdf",
+#            dpi=300, bbox_inches='tight'
+#        )
+
 plt.savefig(
-           "plots/Figure2b.pdf",
+           "plots/Figure2b.png",
            dpi=300, bbox_inches='tight'
        )
 plt.show()
@@ -176,19 +179,19 @@ alpha_points = 0.9    #outside points
 fig = plt.figure(figsize=(4,4), dpi=300)
 ax = fig.add_subplot(111, projection='3d')
 
-# ===================== 1. Extract points =====================
+# ===================== Extract points =====================
 X = X1_id[washout:, 0]
 Y = X1_id[washout:, 1]
 Z = X1_id[washout:, 2]
 points = np.vstack((X,Y,Z))
 
-# ===================== 2. Inside ellipsoid =====================
+# ===================== Inside ellipsoid =====================
 C_inv = np.linalg.inv(C_id)
 transformed = C_inv @ points
 dists = np.sum(transformed**2, axis=0)
 alphas = np.where(dists <= 1, 0.2, alpha_points)
 
-# ===================== 3. Colors for points =====================
+# ===================== Colors for points =====================
 colors = np.zeros((len(X),4))
 colors[:,:3] = ellipse_base_color
 colors[:,3] = alphas
@@ -203,7 +206,7 @@ ax.scatter(
     rasterized=False
 )
 
-# ===================== 4. Ellipsoid surface =====================
+# ===================== Ellipsoid surface =====================
 phi = np.linspace(0, np.pi, 60)
 theta = np.linspace(0, 2*np.pi, 60)
 phi, theta = np.meshgrid(phi, theta)
@@ -218,7 +221,7 @@ X_surf = ellipsoid[0].reshape(phi.shape)
 Y_surf = ellipsoid[1].reshape(phi.shape)
 Z_surf = ellipsoid[2].reshape(phi.shape)
 
-# ===================== 5. Advanced shading with LightSource =====================
+# ===================== Advanced shading with LightSource =====================
 ls = LightSource(azdeg=315, altdeg=45)
 intensity = ls.shade(np.ones_like(Z_surf), cmap=plt.cm.Blues, vert_exag=1, blend_mode='soft')
 facecolors = np.ones_like(intensity[...,:3]) * ellipse_base_color
@@ -232,7 +235,7 @@ ax.plot_surface(
     alpha=alpha_surface
 )
 
-# ===================== 6. Limits, grid, box =====================
+# ===================== Limits, grid, box =====================
 ax.set_xlim([-1,1])
 ax.set_ylim([-1,1])
 ax.set_zlim([-1,1])
@@ -240,34 +243,19 @@ ax.set_box_aspect([1,1,1])
 ax.grid(True, linestyle=':', linewidth=0.5, alpha=0.6)
 ax.set_axis_off()  
 
-# ===================== 7. Optional transparent bounding box =====================
-def draw_transparent_box(ax, lim=(-1,1), face_color='white', edge_color='black', face_alpha=0.08, edge_lw=2.0):
-    r = [lim[0], lim[1]]
-    faces = [
-        [(r[0],r[0],r[0]),(r[1],r[0],r[0]),(r[1],r[1],r[0]),(r[0],r[1],r[0])],
-        [(r[0],r[0],r[1]),(r[1],r[0],r[1]),(r[1],r[1],r[1]),(r[0],r[1],r[1])],
-        [(r[0],r[0],r[0]),(r[1],r[0],r[0]),(r[1],r[0],r[1]),(r[0],r[0],r[1])],
-        [(r[0],r[1],r[0]),(r[1],r[1],r[0]),(r[1],r[1],r[1]),(r[0],r[1],r[1])],
-        [(r[0],r[0],r[0]),(r[0],r[1],r[0]),(r[0],r[1],r[1]),(r[0],r[0],r[1])],
-        [(r[1],r[0],r[0]),(r[1],r[1],r[0]),(r[1],r[1],r[1]),(r[1],r[0],r[1])]
-    ]
-    # Fondo semitransparente
-    poly = Poly3DCollection(faces, facecolors=face_color, edgecolors='none', alpha=face_alpha, zorder=0)
-    ax.add_collection3d(poly)
 
-    # Líneas siempre encima
-    for s,e in combinations(product(r,r,r),2):
-        if sum(abs(s[i]-e[i]) for i in range(3)) == r[1]-r[0]:
-            ax.plot3D([s[0],e[0]], [s[1],e[1]], [s[2],e[2]], color=edge_color, linewidth=edge_lw, zorder=10)
 
-# Llamada al final, después de todo lo demás
 draw_transparent_box(ax, lim=(-1,1))
 
-# ===================== 8. View =====================
+# ===================== View =====================
 ax.view_init(elev=30, azim=50)
 plt.tight_layout(pad=0.2)
 plt.savefig(
            "plots/Figure2a_sw.png",
            dpi=300, bbox_inches='tight'
        )
+# plt.savefig(
+#            "plots/Figure2a_sw.pdf",
+#            dpi=300, bbox_inches='tight'
+#        )
 plt.show()

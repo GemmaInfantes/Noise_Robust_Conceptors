@@ -3,20 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pandas as pd
-from mpl_toolkits.mplot3d import Axes3D
 from utils.rnn_utils import rnn_params
 from utils.rnn_utils import forward_rnn
 from utils.rnn_utils import forward_rnn_comb
 from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
-from utils.rnn_utils import denoising_CTC
 from utils.rnn_utils import denoising_CTC_m
-from utils.utils import xcorr
-from utils.utils import xcorr_new
-from utils.utils import smooth_spectrum
-from utils.utils import prediction_horizon
-from utils.utils import power_spectrum
 from utils.utils import tau_autocorr
 from utils.utils import embedding3D
 from utils.utils import draw_data_box
@@ -128,7 +121,7 @@ C_id=compute_conceptor(X_id, a)
         
 #########################################################################################
         
-label="Open loop  with Noise, without C"
+
 X_noi_ol=forward_rnn(params, ut_train1, seed30,None,False,None,std_noise)
 # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
 #noisy conceptor
@@ -147,7 +140,7 @@ params_trained_noi, mse = ridge(reg, X_effective, yt_train_effective,step,params
         
 #########################################################################################
         
-label="Open loop  with Noise, with C noisy"
+
 X_noi_C_ol=forward_rnn(params, ut_train1, seed30,None,False,C_noi,std_noise)
 # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
 
@@ -170,7 +163,6 @@ params_trained_noi_C, mse = ridge(reg, X_effective, yt_train_effective,step,para
         
 #first computing the CTC conceptor for each level of noise       
 C_ctc=denoising_CTC_m(params, ut_train1, std_noise, a_new,m)
-label="Open loop  with Noise, with CTC C"
 X_noi_C_ctc_ol=forward_rnn(params, ut_train1, seed30,None,False,C_ctc,std_noise)
 # trained_model_new(X_noi_C_ctc[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
 #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
@@ -181,26 +173,7 @@ yt_train_effective = yt_train1[washout:]
 params_trained_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
     
 
-######################################################################################
-        
-#Running in open loop with  with C ideal
-        
-#########################################################################################
-        
 
-X_noi_C_id_ol=forward_rnn(params, ut_train1, seed30,None,False,C_id,std_noise)
-# trained_model_new(X_noi_C_ctc[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
-#getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
-X_effective = X_noi_C_id_ol[washout:]
-yt_train_effective = yt_train1[washout:]
-#showing training X
-#training Wout with Xi 
-params_trained_id, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
-    
-   
-      
-    
-    
     
 ######################################################################################
         
@@ -243,25 +216,11 @@ X_noi_C_noi=forward_rnn_comb(params_trained_noi_C, ut_train1, seed30,steps_ol,No
 
 
         
-######################################################################################
-        
-#Running in autonomous mode with noise with C ideal
-        
-#########################################################################################
-        
-#first computing the CTC conceptor for each level of noise
-        
-
-X_noi_C_id=forward_rnn_comb(params_trained_id, ut_train1, seed30,steps_ol,None,C_id,std_noise)
-  
-
-        
 steps=3000    
 #obtaining the outputs
 Y_target=yt_train1[steps_ol:steps_ol+steps] #real data
 Y_noi = X_noi[steps_ol:steps_ol+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
 Y_noi_C_ctc = X_noi_C_ctc[steps_ol:steps_ol+steps] @ params_trained_CTC['wout'].T + params_trained_CTC['bias_out'] #autonomous with noise with ctc C
-Y_noi_C_id = X_noi_C_id[steps_ol:steps_ol+steps] @ params_trained_id['wout'].T + params_trained_id['bias_out'] #autonomous with noise with ctc C
 Y_noi_C_noi = X_noi_C_noi[steps_ol:steps_ol+steps] @ params_trained_noi_C['wout'].T + params_trained_noi_C['bias_out'] #autonomous with noise with ctc C
  
         
@@ -299,7 +258,6 @@ colors = {
 y_target  = np.asarray(Y_target[:steps,0]).ravel()
 y_noC     = np.asarray(Y_noi[:steps,0]).ravel()
 y_CTC     = np.asarray(Y_noi_C_ctc[:steps,0]).ravel()
-y_id      = np.asarray(Y_noi_C_id[:steps,0]).ravel()
 y_C_noi   = np.asarray(Y_noi_C_noi[:steps,0]).ravel()  # C_noisy
 
 # Compute tau using autocorrelation
@@ -350,27 +308,16 @@ for label, (y0, y1, y2) in embeddings.items():
     y_min, y_max = np.min(y1), np.max(y1)
     z_min, z_max = np.min(y2), np.max(y2)
 
-#     # Labels at the edges of the box
-#     ax.text(x_max-2, y_max+0.7, z_min-0.5, r"$x(k)$", fontsize=25, color='black')
-#     ax.text(x_max, y_max-2.5, z_min-1.1, r"$x(k-\tau)$", fontsize=25, color='black')
-#     ax.text2D(
-#     0.12, 0.50,
-#     r"$x(k-2\tau)$",
-#     transform=ax.transAxes,
-#     fontsize=25,
-#     rotation=90,
-#     va='center',
-#     ha='center'
-# )
+
 
     # Turn off grid
     plt.grid(False)
     plt.subplots_adjust(top=0.88, bottom=0.05, left=0.05, right=0.95)
     
-    plt.savefig(
-               f"plots/Figure8_{i}.pdf",
-               dpi=300, bbox_inches='tight'
-           )
+    # plt.savefig(
+    #            f"plots/Figure8_{i}.pdf",
+    #            dpi=300, bbox_inches='tight'
+    #        )
     
     plt.savefig(
                f"plots/Figure8_{i}.png",

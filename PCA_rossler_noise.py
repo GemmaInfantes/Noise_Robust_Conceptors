@@ -14,7 +14,7 @@ from utils.utils import PCA_3D
 #Parameters that we can tune from the terminal
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--seed", type=float, default=42) #for the noise #42
+parser.add_argument("--seed", type=float, default=42) #for the noise 
 
 args = parser.parse_args()
 
@@ -87,8 +87,10 @@ yt_train_effective = yt_train1[washout:]
 #training Wout with Xi 
 params_trained_id, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
 
-
 _,PCA1_id,PCA2_id,PCA3_id=PCA_3D(X1_id[washout:])
+
+
+
 
 #noise scan
 noise_std=[10,30,50,70,90]
@@ -112,14 +114,7 @@ for i in range(len(noise_std)):
     #computing the standard deviation for the noise
     std_noise=std_noise_func(X1_id,noise_std[i])
     
-    ##################################################################################
-    
-    #Running the closed loop ideal (no noise)
-    
-    ####################################################################################
-    
-    X_id=forward_rnn(params_trained_id, ut_train1,seed, x_init=None,autonomous=True,conceptor=None)
-    
+
     ##################################################################################
     
     #Running the open loop with noise without C and computing Wout
@@ -140,16 +135,7 @@ for i in range(len(noise_std)):
     _,PCA1_noi[:,i],PCA2_noi[:,i],PCA3_noi[:,i]=PCA_3D(X_noi[washout:])
     
     
-    
-    ##################################################################################
-    
-    #Running the Autonomous with noise without C 
-    
-    ####################################################################################
-    #obtain matrix X1 (time, N) of internal states for all time points
-    X1_noi=forward_rnn(params_trained_noi, ut_train1,seed, None,True,None,std_noise)
-    
-    
+
     
     ##################################################################################
     
@@ -170,13 +156,7 @@ for i in range(len(noise_std)):
     _,PCA1_C_noi[:,i],PCA2_C_noi[:,i],PCA3_C_noi[:,i]=PCA_3D(X_noi_C_noi[washout:])
     
     
-    ##################################################################################
-    
-    #Running the Autonomous with noisy C 
-    
-    ####################################################################################
-    X1_noi_C_noi=forward_rnn(params_trained_C, ut_train1,seed, None,True,C_noi,std_noise)
-    
+
     ##################################################################################
     
     #Running the open loop with noise with CTC C anc computing Wout
@@ -194,23 +174,7 @@ for i in range(len(noise_std)):
     params_trained_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
     _,PCA1_C_ctc[:,i],PCA2_C_ctc[:,i],PCA3_C_ctc[:,i]=PCA_3D(X_noi_C_ctc[washout:])
     
-    ##################################################################################
-    
-    #Running the Autonomous with C CTC
-    
-    ####################################################################################
-    X1_noi_C_ctc=forward_rnn(params_trained_CTC, ut_train1,seed, None,True,C_ctc,std_noise)
-    
-    
-    
-    # #computing the outputs
-    # #obtaining the outputs for autonomous mode
-    # Y_target=yt_train1 #real data
-    # Y1_id = X_id[washout:] @ params_trained_id['wout'].T + params_trained_id['bias_out'] #autonomous with noise 
-    # Y1_noi = X1_noi[washout:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
-    # Y1_noi_C_noi = X1_noi_C_noi[washout:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #autonomous with noise with noisy C
-    # Y1_noi_C_ctc = X1_noi_C_ctc[washout:] @ params_trained_CTC['wout'].T + params_trained_CTC['bias_out'] #autonomous with noise with ctc C
-
+  
 
 #limits for the plot
 steps_in=washout
@@ -226,10 +190,11 @@ colors = {
 
 
 
-# ============================
+##################################
+
 # PCA vs Noise (PC1 vs PC2)
 
-# ============================
+####################################
 
 n_noise = len(noise_std)
 
@@ -313,11 +278,11 @@ handles = [
 fig.legend(handles=handles, loc='upper center', ncol=3, frameon=False, fontsize=30, bbox_to_anchor=(0.5, 1.02), markerscale=1.5)
 
 plt.tight_layout(pad=0.1, rect=[0, 0.05, 1, 0.95])
-plt.savefig(
-    "plots/PCA_vs_noise.pdf",
-    dpi=300,
-    bbox_inches="tight"
-)
+# plt.savefig(
+#     "plots/PCA_vs_noise.pdf",
+#     dpi=300,
+#     bbox_inches="tight"
+# )
 plt.savefig(
     "plots/PCA_vs_noise.png",
     dpi=300,

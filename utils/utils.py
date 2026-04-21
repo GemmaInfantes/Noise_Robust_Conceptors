@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.cross_decomposition import CCA
-from scipy.signal import correlate, correlation_lags
+from scipy.signal import correlate
 import matplotlib.pyplot as plt
 from scipy.fft import fft, fftfreq
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -116,9 +115,7 @@ def PCA_3D(X):
     PCA1=X_pca[:,0]
     PCA2=X_pca[:,1]
     PCA3=X_pca[:,2]
-    
-    
-    
+       
     return X_pca,PCA1, PCA2, PCA3
 
 
@@ -310,63 +307,7 @@ def smooth_spectrum(power, window=5):
     return np.convolve(power, kernel, mode="same")
 
 
-    
-# def prediction_horizon(y_true, y_pred, window ,steps=None, washout=0, threshold=0.1, consecutive=3,lyap=None):
-#     """
-#     Compute NRMSE for a window that moves one step at a time and stop when the error exceeds 
-#     threshold for a number of consecutive steps.
-
-#     Args:
-#     - y_true (array): reference series
-#     - y_pred (array): predicted series
-#     - window (int): length of the window where error is computed
-#     - steps (int): max number of steps to evaluate, if None, uses full series
-#     - washout (int): initial steps to ignore
-#     - threshold (float): NRMSE threshold to trigger break
-#     - consecutive (int): number of consecutive steps above threshold to stop
-#     - lyap (float):lyaponov exponent 
-
-#     Returns:
-#     - nrmse_series (list): NRMSE at each evaluated step
-#     - horizon (int): number of steps before threshold exceeded consecutively
-#     """
-#     washout = int(washout)
-    
-#     y_true_eff = y_true[washout:]
-#     y_pred_eff = y_pred[washout:]
-    
-#     if steps is None:
-#         steps = len(y_true_eff)
-#     else:
-#         steps = min(steps, len(y_true_eff))
-    
-#     nrmse_series = []
-#     above_count = 0
-#     horizon = steps
-    
-#     for t in range(0, steps - window + 1): # we dont want teh avaluation to excead the len of y
-#     #avoiding the last windoe possible to be smaller than the other ones
-#         nrmse = NRMSE(y_true_eff[t:window+t], y_pred_eff[t:window+t])
-#         nrmse_series.append(nrmse)
-        
-#         if nrmse > threshold:
-#             above_count += 1
-#             if above_count >= consecutive:
-#                 horizon = t - consecutive + 1  # step before consecutive violations
-#                 break
-#         else:
-#             above_count = 0  # reset counter if below threshold
-#     if lyap is not None:
-#         #horizont prediction with lyaponov units
-#         # LT=1/lyap
-#         horizon_normalized=horizon*lyap #the samas duinh horizon/LT (it says how many lyapunov time is the horizon)
-        
-#     else:    
-#         #normalizing the horizon
-#         # horizon_normalized=horizon/(steps-washout)
-#         horizon_normalized=horizon
-#     return nrmse_series, horizon_normalized 
-    
+      
 def prediction_horizon(y_true, y_pred, window ,steps=None, washout=0, threshold=0.1, consecutive=3,lyap=None):
     """
     Compute NRMSE for a window that moves one step at a time and stop when the error exceeds 
@@ -433,6 +374,8 @@ def tau_autocorr(signal):
 
     return tau, corr        
     
+
+
 # Function to create 3D embedding
 def embedding3D(signal, tau):
     y0 = signal[2*tau:]    # x(t)
@@ -496,9 +439,6 @@ def draw_transparent_box(ax, lim=(-1,1), face_color='white', edge_color='black',
 
 
 
-# ------------------------------
-# Function to draw transparent box based on data limits
-# ------------------------------
 def draw_data_box(ax, x_vals, y_vals, z_vals,
                   face_color='white',
                   edge_color='black',

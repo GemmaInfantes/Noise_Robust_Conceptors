@@ -8,11 +8,8 @@ from utils.rnn_utils import forward_rnn
 from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
-from utils.rnn_utils import denoising_CTC
 from utils.rnn_utils import denoising_CTC_m
 from utils.utils import NRMSE
-from utils.utils import xcorr_PCA
-from utils.utils import xcorr
 
 #Parameters that you can tune from terminal
 parser = argparse.ArgumentParser()
@@ -30,14 +27,11 @@ parser.add_argument("--noise", type=int, default=50) #% of noise
 parser.add_argument("--p", type=int, default=25) #max steps to predict
 parser.add_argument("--p_steps", type=int, default=1) # steps to predict
 parser.add_argument("--m", type=int, default=2) # number of realizations of CTC
-# parser.add_argument("--N", type=int, default=256) #input scaling
 
 args = parser.parse_args()
 
 
 # max steps should be larger than p, at list 1.1*p_max
-
-
 if not args.steps > 1.2 * args.p:
     raise ValueError(
         f"Inconsistent configuration: 'steps' must be at least 1.2 times larger than p_max.\n"
@@ -67,8 +61,6 @@ time_len=args.time_len #number of points that we want to us eto train the Reserv
 steps=args.steps
 sparsity=None
 a_new=args.a_new
-# noise_std=args.noise_std
-# noise_stre=args.noise_stre
 
 #Input Signal Rössler x
 data1 = pd.read_csv("Rossler_data/xRossler.txt", sep="\t",header=None,index_col=None)
@@ -140,14 +132,13 @@ for idx, p in enumerate(p1):
 
        ##################################################################################
 
-       #Running the open loop without noise and computing Wout
+       #Running the open loop without noise for the noise std
 
        ####################################################################################
 
        #obtain matrix X1 (time, N) of internal states for all time points
         X_id=forward_rnn(params, ut_train1, 42,x_init=None,autonomous=False,conceptor=None)
-       #Compute model conceptors
-        C_id=compute_conceptor(X_id, a)
+    
        #computing the standard deviation for the noise
         std_noise=std_noise_func(X_id,args.noise)
     
@@ -174,24 +165,7 @@ for idx, p in enumerate(p1):
             params_trained_noi, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
             
             
-            ######################################################################################
-                
-            #Running in open loop with noise with ideal conceptor
-                
-            #########################################################################################
-                
-                
-            X_C_id=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_id,std_noise)
-                
-            
-            #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
-            X_effective = X_C_id[washout:]
-            yt_train_effective = yt_train1[washout:]
-            #showing training X
-            #training Wout with Xi 
-            params_trained_id, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
-            
-            
+           
             
             
                 
@@ -212,26 +186,7 @@ for idx, p in enumerate(p1):
             #training Wout with Xi 
             params_trained_C, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
             
-            ######################################################################################
-                
-            #Running in open loop with noise with CTC conceptor
-                
-            #########################################################################################
-                
-            #first computing the CTC conceptor for each level of noise
-                
-            C_ctc=denoising_CTC(params, ut_train1, std_noise, a_new)
-                
-            X_noi_C_ctc=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_ctc,std_noise)
-                
-            #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
-            X_effective = X_noi_C_ctc[washout:]
-            yt_train_effective = yt_train1[washout:]
-            #showing training X
-            #training Wout with Xi 
-            params_trained_CTC, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
-            
-            
+           
             ######################################################################################
                 
             #Running in open loop with noise with CTC m conceptor
@@ -252,30 +207,17 @@ for idx, p in enumerate(p1):
             params_trained_CTC_m, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
             
                 
-            #obtaining the outputs
-            # Y_target=yt_train1 #real data
-            # Y_noi = X_noi[washout:washout+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
-            # Y_noi_C_noi = X_noi_C_noi[washout:washout+steps] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #autonomous with noise with noisy C
-            # Y_noi_C_ctc = X_noi_C_ctc[washout:washout+steps] @ params_trained_CTC['wout'].T + params_trained_CTC['bias_out'] #autonomous with noise with ctc C
-                
-            # #transforming the array 
-            # y = np.asarray(Y_target[washout:washout+steps]).ravel()  
-            
             
             Y_target=yt_train1 #real data
-            Y_noi = X_noi[washout:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
-            Y_noi_C_noi = X_noi_C_noi[washout:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #autonomous with noise with noisy C
-            Y_noi_C_ctc = X_noi_C_ctc[washout:] @ params_trained_CTC['wout'].T + params_trained_CTC['bias_out'] #autonomous with noise with ctc C
-            Y_C_id = X_C_id[washout:] @ params_trained_id['wout'].T + params_trained_id['bias_out'] #autonomous with noise with ctc C
-            Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:] @ params_trained_CTC_m['wout'].T + params_trained_CTC['bias_out'] #autonomous with noise with ctc m C
+            Y_noi = X_noi[washout:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #open loop with noise 
+            Y_noi_C_noi = X_noi_C_noi[washout:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #open loop with noise with noisy C
+            Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #open loop with noise with ctc m C
             
             #transforming the array 
             y = np.asarray(Y_target[washout:]).ravel()   
                   
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
-            y_noi_C_ctc = np.asarray(Y_noi_C_ctc).ravel()
-            y_C_id = np.asarray(Y_C_id).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
             
             ###########################################################################################
@@ -286,8 +228,6 @@ for idx, p in enumerate(p1):
             trial_index = i * trials_noise + j #to store the results correctly
             nrmse_noi[idx,trial_index]        = NRMSE(y, y_noi)
             nrmse_C_noi[idx,trial_index]  = NRMSE(y, y_noi_C_noi)
-            nrmse_noi_C_ctc[idx,trial_index]  = NRMSE(y, y_noi_C_ctc)
-            nrmse_id[idx,trial_index]  = NRMSE(y, y_C_id)
             nrmse_noi_C_ctc_m[idx,trial_index]  = NRMSE(y, y_noi_C_ctc_m)
 
 
@@ -332,147 +272,8 @@ std_noi = np.std(nrmse_noi, axis=1)
 mean_C_noi = np.mean(nrmse_C_noi, axis=1)
 std_C_noi = np.std(nrmse_C_noi, axis=1)
 
-mean_C_ctc = np.mean(nrmse_noi_C_ctc, axis=1)
-std_C_ctc = np.std(nrmse_noi_C_ctc, axis=1)
-
-mean_id = np.mean(nrmse_id, axis=1)
-std_id = np.std(nrmse_id, axis=1)
-
 mean_C_ctc_m = np.mean(nrmse_noi_C_ctc_m, axis=1)
 std_C_ctc_m = np.std(nrmse_noi_C_ctc_m, axis=1)
-
-
-# # ----------------------------- Plot NRMSE --------------------------------------
-# plt.figure(figsize=(9, 5), dpi=300)
-
-# # Without C
-# plt.plot(
-#     p1, mean_noi,
-#     color="green", alpha=0.9,
-#     marker='s', label="Without C"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_noi - std_noi,
-#     mean_noi + std_noi,
-#     color="green", alpha=0.25
-# )
-
-# # With C_noisy
-# plt.plot(
-#     p1, mean_C_noi,
-#     color="red", alpha=0.9,
-#     marker='^', 
-#     label=r"With $C_{noisy}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_noi - std_C_noi,
-#     mean_C_noi + std_C_noi,
-#     color="red", alpha=0.25
-# )
-
-# # With C_ctc
-# plt.plot(
-#     p1, mean_C_ctc,
-#     color="#E67E22", alpha=0.9,
-#     marker='o', 
-#     label=r"With $C_{ctc}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_ctc - std_C_ctc,
-#     mean_C_ctc + std_C_ctc,
-#     color="#E67E22", alpha=0.25
-# )
-
-# # Labels and style
-# plt.xlabel(r"$p$ (prediction steps)")
-# plt.ylabel("NRMSE", size=19)
-
-# plt.grid(True, linestyle='--', alpha=0.6)
-# plt.legend()
-
-# # Save figure
-# plt.savefig(
-#     f"plots/NRMSE_vs_p_N{N}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.png",
-#     dpi=300, bbox_inches='tight'
-# )
-
-# plt.show()
-
-
-
-# # ----------------------------- Plot NRMSE with ideal C --------------------------------------
-# plt.figure(figsize=(9, 5), dpi=300)
-
-# #C ideal
-# plt.plot(
-#     p1, mean_id,
-#     color="purple", alpha=0.9,
-#     marker='*', label=r"With $C_{ideal}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_id - std_id,
-#     mean_id + std_id,
-#     color="purple", alpha=0.25
-# )
-# # Without C
-# plt.plot(
-#     p1, mean_noi,
-#     color="green", alpha=0.9,
-#     marker='s', label="Without C"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_noi - std_noi,
-#     mean_noi + std_noi,
-#     color="green", alpha=0.25
-# )
-
-# # With C_noisy
-# plt.plot(
-#     p1, mean_C_noi,
-#     color="red", alpha=0.9,
-#     marker='^', 
-#     label=r"With $C_{noisy}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_noi - std_C_noi,
-#     mean_C_noi + std_C_noi,
-#     color="red", alpha=0.25
-# )
-
-# # With C_ctc
-# plt.plot(
-#     p1, mean_C_ctc,
-#     color="#E67E22", alpha=0.9,
-#     marker='o', 
-#     label=r"With $C_{ctc}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_ctc - std_C_ctc,
-#     mean_C_ctc + std_C_ctc,
-#     color="#E67E22", alpha=0.25
-# )
-
-# # Labels and style
-# plt.xlabel(r"$p$ (prediction steps)")
-# plt.ylabel("NRMSE", size=19)
-
-# plt.grid(True, linestyle='--', alpha=0.6)
-# plt.legend()
-
-# # Save figure
-# plt.savefig(
-#     f"plots/NRMSE_ideal_vs_p_N{N}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.png",
-#     dpi=300, bbox_inches='tight'
-# )
-
-# plt.show()
 
 
 
@@ -534,164 +335,12 @@ plt.savefig(
     dpi=300, bbox_inches='tight'
 )
 
-plt.savefig(
-    f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.pdf",
-    dpi=300, bbox_inches='tight'
-)
-
-plt.show()
-
-
-
-
-# # ----------------------------- Plot log sacle NRMSE --------------------------------------
-# plt.figure(figsize=(9, 5), dpi=300)
-
-# # Without C
-# plt.semilogy(
-#     p1, mean_noi,
-#     color="green", alpha=0.9,
-#     marker='s', label="Without C"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_noi - std_noi,
-#     mean_noi + std_noi,
-#     color="green", alpha=0.25
-# )
-
-# # With C_noisy
-# plt.semilogy(
-#     p1, mean_C_noi,
-#     color="red", alpha=0.9,
-#     marker='^', 
-#     label=r"With $C_{noisy}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_noi - std_C_noi,
-#     mean_C_noi + std_C_noi,
-#     color="red", alpha=0.25
-# )
-
-# # With C_ctc
-# plt.semilogy(
-#     p1, mean_C_ctc,
-#     color="#E67E22", alpha=0.9,
-#     marker='o', 
-#     label=r"With $C_{ctc}$"
-# )
-# plt.fill_between(
-#     p1,
-#     mean_C_ctc - std_C_ctc,
-#     mean_C_ctc + std_C_ctc,
-#     color="#E67E22", alpha=0.25
-# )
-
-# # Labels and style
-# plt.xlabel(r"$p$ (prediction steps)")
-# plt.ylabel("NRMSE", size=19)
-
-# plt.grid(True, linestyle='--', alpha=0.6)
-# plt.legend()
-
-# # Save figure
 # plt.savefig(
-#     f"plots/logNRMSE_vs_p_N{N}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.png",
+#     f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.pdf",
 #     dpi=300, bbox_inches='tight'
 # )
 
-# plt.show()
-        
-          
- 
-
-##############################################################################################
-        
-#Plotting the outputs
-        
-############################################################################################
-#limits for the plots      
-steps_in=0
-steps_fin=100
-        
-# Time axis
-        
-k1 = np.arange(len(y))
-        
-        
-# Global style (paper-ready)
-        
-plt.rcParams.update({
-            'font.size': 18,
-            'axes.labelsize': 20,
-            'axes.titlesize': 20,
-            'xtick.labelsize': 16,
-            'ytick.labelsize': 16,
-            'lines.linewidth': 2.8,
-            "axes.linewidth": 1.6,
-            "axes.edgecolor": "black",
-        })
-        
-# Consistent y-limits
-y_min = min(y.min(), y_noi.min(), y_noi_C_ctc.min())
-y_max = max(y.max(), y_noi.max(), y_noi_C_ctc.max())
-        
-      
-# Target vs CTC case
-       
-fig1, ax1 = plt.subplots(figsize=(8, 4), dpi=300)
-        
-ax1.plot(k1[steps_in:steps_fin], y[steps_in:steps_fin], color='black', linestyle='--', label='Target')
-ax1.plot(k1[steps_in:steps_fin], y_noi_C_ctc[steps_in:steps_fin], color='#E67E22', label=r'With $C_{ctc}$')
-        
-ax1.set_xlim(steps_in, steps_fin - 1) 
-ax1.set_ylim(y_min-0.05, y_max+0.05)
-ax1.set_xlabel("Time steps (k)")
-ax1.set_ylabel("Output $y(k)$")
-ax1.grid(True, linestyle='--', alpha=0.4)
-ax1.legend(frameon=True, framealpha=0.9)
-        
-plt.tight_layout()
-# plt.savefig(
-#            "plots/Figure6d.png",
-#            dpi=300, bbox_inches='tight'
-#        )
-# plt.show()
-        
- 
-
-        
-          
- 
-# Target vs without C
-       
-fig2, ax2 = plt.subplots(figsize=(8, 4), dpi=300)
-        
-ax2.plot(k1[steps_in:steps_fin], y[steps_in:steps_fin], color='black', linestyle='--', label='Target')
-ax2.plot(k1[steps_in:steps_fin], y_noi[steps_in:steps_fin], color='green', label='Without $C$')
-        
-ax2.set_xlim(steps_in, steps_fin - 1) 
-ax2.set_ylim(y_min-0.05, y_max+0.05)
-ax2.set_xlabel("Time steps (k)")
-ax2.set_ylabel("Output $y(k)$")
-ax2.grid(True, linestyle='--', alpha=0.4)
-ax2.legend(frameon=True, framealpha=0.9)
-        
-plt.tight_layout()
-# plt.savefig(
-#            "plots/Figure6c.png",
-#            dpi=300, bbox_inches='tight'
-#        )
-    
-# plt.show()
-
-
-
-
-
-
-
+plt.show()
 
 
 

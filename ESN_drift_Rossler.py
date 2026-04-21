@@ -6,20 +6,16 @@ import pandas as pd
 from utils.rnn_utils import rnn_params
 from utils.rnn_utils import forward_rnn
 from utils.rnn_utils import forward_rnn_drift
-from utils.rnn_utils import forward_rnn_drift_comb
 from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC
-from utils.rnn_utils import denoising_CTC_m
-from utils.utils import NRMSE
-from utils.utils import xcorr_PCA
-from utils.utils import xcorr
+
 
 #Parameters that you can tune from terminal
 parser = argparse.ArgumentParser()
 parser.add_argument("--trials", type=int, default=50) #number of trails, for different seeds
-parser.add_argument("--b", type=float, default=30) # % of deviation of b
+parser.add_argument("--b", type=float, default=50) # % of deviation of b
 parser.add_argument("--aperture", type=int, default=5) #conceptor aperture
 parser.add_argument("--a_new", type=float, default=5) # aperture for the clean conceptors
 parser.add_argument("--steps", type=int, default=400) #number of time steps used tu compute the NRMSE and the correlation
@@ -29,7 +25,7 @@ parser.add_argument("--N", type=int, default=200) #number of neurons
 parser.add_argument("--spectral_radius", type=float, default=1.6) #spectral radius
 parser.add_argument("--scaling", type=float, default=0.9) #scaling
 parser.add_argument("--seedn", type=float, default=393) #seed for the noise 474  
-parser.add_argument("--noise", type=float, default=0) #level of noise
+parser.add_argument("--noise", type=float, default=10) #level of noise
 
 args = parser.parse_args()
 
@@ -57,8 +53,6 @@ a_new=args.a_new
 noise=args.noise
 steps=args.steps
 seedn=args.seedn
-# noise_std=args.noise_std
-# noise_stre=args.noise_stre
 
 #Input Signal Rössler x
 data1 = pd.read_csv("Rossler_data/xRossler.txt", sep="\t",header=None,index_col=None)
@@ -98,8 +92,6 @@ params=rnn_params(
 
 #obtain matrix X1 (time, N) of internal states for all time points
 X_id=forward_rnn(params, ut_train1, 42,x_init=None,autonomous=False,conceptor=None)
-#Compute model conceptors
-C_id=compute_conceptor(X_id, a)
 
 #noise std
 std_noise=std_noise_func(X_id,noise)
@@ -154,44 +146,6 @@ yt_train_effective = yt_train1[washout:]
 params_trained_noi_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
     
 
-######################################################################################
-        
-#Running in open loop withot drift with noise without drift TRAINING C IDEAL
-        
-#########################################################################################
-        
-
-X_noi_C_id=forward_rnn(params, ut_train1, seedn,None,False,C_id,std_noise)
-# trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
-
-
-
-#getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
-X_effective = X_noi_C_id[washout:]
-yt_train_effective = yt_train1[washout:]
-#showing training X
-#training Wout with Xi 
-params_trained_noi_C_id, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
-    
-######################################################################################
-        
-#Running in open loop withot drift with noise without drift TRAINING C IDEAL
-        
-#########################################################################################
-        
-
-X_noi_C_noi=forward_rnn(params, ut_train1, seedn,None,False,C_noi,std_noise)
-# trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
-
-
-
-#getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
-X_effective = X_noi_C_noi[washout:]
-yt_train_effective = yt_train1[washout:]
-#showing training X
-#training Wout with Xi 
-params_trained_noi_C_noi, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
-    
 
 
 ################################ OPEN LOOP ############################################
@@ -218,70 +172,6 @@ X_d=forward_rnn_drift(params, ut_train1, seedn,None,False,None,std_drift,std_noi
 X_d_C_ctc=forward_rnn_drift(params, ut_train1, seedn,None,False,C_ctc,std_drift,std_noise)
   
 
-######################################################################################
-        
-#Running in open loop with dift with ideal conceptor
-        
-#########################################################################################
-
-X_d_C_id=forward_rnn_drift(params, ut_train1, seedn,None,False,C_id,std_drift,std_noise)
-
-
-######################################################################################
-        
-#Running in open loop with dift with noisy conceptor
-        
-#########################################################################################
-
-X_d_C_noi=forward_rnn_drift(params, ut_train1, seedn,None,False,C_noi,std_drift,std_noise)
-
-
-
-
-
-
-################################ CLOSED LOOP ############################################
-
-
-
-######################################################################################
-        
-#Running in closed loop with drift without conceptor
-        
-#########################################################################################
-        
-
-X_d_cl=forward_rnn_drift_comb(params_trained_noi, ut_train1, seedn,steps_ol,None,None,std_drift,std_noise)
-
-
-######################################################################################
-        
-#Running in closed loop with dift with CTC conceptor
-        
-#########################################################################################
-        
-
-X_d_C_ctc_cl=forward_rnn_drift_comb(params_trained_noi_CTC, ut_train1, seedn,steps_ol,None,C_ctc,std_drift,std_noise)
-  
-
-######################################################################################
-        
-#Running in closed loop with dift with ideal conceptor
-        
-#########################################################################################
-
-X_d_C_id_cl=forward_rnn_drift_comb(params_trained_noi_C_id, ut_train1, seedn,steps_ol,None,C_id,std_drift,std_noise)
-
-
-######################################################################################
-        
-#Running in closed loop with dift with noisy conceptor
-        
-#########################################################################################
-
-X_d_C_noi_cl=forward_rnn_drift_comb(params_trained_noi_C_noi, ut_train1, seedn,steps_ol,None,C_noi,std_drift,std_noise)
-
-
 
 
 
@@ -295,16 +185,6 @@ washout=100 #first 100 steps without drift
 Y_target=yt_train1 #real data
 Y_d = X_d[washout:washout+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
 Y_d_C_ctc = X_d_C_ctc[washout:washout+steps] @ params_trained_noi_CTC['wout'].T + params_trained_noi_CTC['bias_out'] #autonomous with noise with ctc C
-Y_d_C_id = X_d_C_id[washout:washout+steps] @ params_trained_noi_C_id['wout'].T + params_trained_noi_C_id['bias_out'] #autonomous with noise with ctc C
-Y_d_C_noi = X_d_C_noi[washout:washout+steps] @ params_trained_noi_C_noi['wout'].T + params_trained_noi_C_noi['bias_out'] #autonomous with noise with ctc C
-
-
-#closed loop
-Y_d_cl = X_d_cl[washout:washout+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
-Y_d_C_ctc_cl = X_d_C_ctc_cl[washout:washout+steps] @ params_trained_noi_CTC['wout'].T + params_trained_noi_CTC['bias_out'] #autonomous with noise with ctc C
-Y_d_C_id_cl = X_d_C_id_cl[washout:washout+steps] @ params_trained_noi_C_id['wout'].T + params_trained_noi_C_id['bias_out'] #autonomous with noise with ctc C
-Y_d_C_noi_cl = X_d_C_noi_cl[washout:washout+steps] @ params_trained_noi_C_noi['wout'].T + params_trained_noi_C_noi['bias_out'] #autonomous with noise with ctc C
-
 
 
         
@@ -312,13 +192,6 @@ Y_d_C_noi_cl = X_d_C_noi_cl[washout:washout+steps] @ params_trained_noi_C_noi['w
 y = np.asarray(Y_target[washout:washout+steps]).ravel()          
 y_d = np.asarray(Y_d).ravel()   
 y_d_C_ctc = np.asarray(Y_d_C_ctc).ravel()
-y_d_C_id = np.asarray(Y_d_C_id).ravel()
-y_d_C_noi = np.asarray(Y_d_C_noi).ravel()
-
-y_d_cl = np.asarray(Y_d_cl).ravel()   
-y_d_C_ctc_cl = np.asarray(Y_d_C_ctc_cl).ravel()
-y_d_C_id_cl = np.asarray(Y_d_C_id_cl).ravel()
-y_d_C_noi_cl = np.asarray(Y_d_C_noi_cl).ravel()
 
 
 ##############################################################################################
@@ -378,8 +251,13 @@ ax1.set_ylabel("Output $y(k)$")
 ax1.grid(True, linestyle='--', alpha=0.4)
 ax1.legend(loc='upper left',frameon=True, framealpha=0.9)       
 plt.tight_layout()
+# plt.savefig(
+#            "plots/Figure12b.pdf",
+#            dpi=300, bbox_inches='tight'
+#        )
+
 plt.savefig(
-           "plots/Figure12b.pdf",
+           "plots/Figure12b.png",
            dpi=300, bbox_inches='tight'
        )
 plt.show()
@@ -401,8 +279,14 @@ ax2.set_ylabel("Output $y(k)$")
 ax2.grid(True, linestyle='--', alpha=0.4)
 ax2.legend(loc='upper left',frameon=True, framealpha=0.9)         
 plt.tight_layout()
+
+# plt.savefig(
+#            "plots/Figure12a.pdf",
+#            dpi=300, bbox_inches='tight'
+#        )
+
 plt.savefig(
-           "plots/Figure12a.pdf",
+           "plots/Figure12a.png",
            dpi=300, bbox_inches='tight'
        )
     
