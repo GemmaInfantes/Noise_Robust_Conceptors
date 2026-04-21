@@ -45,53 +45,7 @@ def NRMSE(y1,y2):
     
     return nrmse
 
-
-
-
-    
-    
-    
-def FFT(y, dt, label, plot=True):
-    """
-    Compute the frequency spectrum of a signal, ignoring the DC component.
-
-    Args:
-    - y: array-like, input time series
-    - dt: float, sampling interval
-    - label: str, label for plot title
-    - plot: bool, whether to show the plot
-
-    Returns:
-    - freqs_noDC: array, positive frequencies (Hz) excluding 0
-    - magnitude_noDC: array, corresponding amplitudes
-    """
   
-
-    # Flatten y to 1D
-    y = y.flatten()
-    n = len(y)
-
-    # Compute FFT
-    fft_values = np.fft.fft(y)
-    freqs = np.fft.fftfreq(n, d=dt)
-
-    # Take only positive frequencies
-    half_n = n // 2
-    freqs = freqs[1:half_n]                  # skip DC (freq 0)
-    magnitude = np.abs(fft_values[1:half_n]) * 2 / n  # normalize amplitude
-
-    if plot:
-        plt.figure(figsize=(8, 4))
-        plt.plot(freqs, magnitude, color='b')
-        plt.title(f"Frequency Spectrum: {label}")
-        plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Amplitude")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
-
-    return freqs, magnitude
-
 
     
 def PCA_3D(X):
@@ -186,59 +140,6 @@ def xcorr_PCA(X,Y,washout,steps):
     
 
 
-def xcorr(X,Y,washout,steps,f_min,f_max,dt=None):
-    """
-    Computes a similarity score between two sets of arrays X and Y
-    .
-
-    Args:
-    
-    - X : (array) Reference matrix  
-    - Y : (array) Matrix to compare
-    - washout : (int) Steps fo the washout
-    - steps : (int) steps that we are going to use in the xcorr
-    - dt : (float) dt for the FFT
-    - f_min, f_max : (float) range of frequencies that we are going to use
-    
-    Returns:
-    - xcorr : (float)  normalized max xcorr
-    """
-    
-    #taking the steps that we want to use
-    X=X[washout:washout+steps]
-    Y=Y[washout:washout+steps]
-    
-    #for the frequancy spectra
-    if dt is not None:
-        fx, X = power_spectrum(X, dt)
-        fy, Y = power_spectrum(Y, dt)
-    
-        epsilon = 1e-12
-        X = np.log10(X + epsilon)
-        Y = np.log10(Y + epsilon)
-    
-        # in the case that that vaule is not in f, take the closer one
-        i_min = np.argmin(np.abs(fx - f_min))
-        i_max = np.argmin(np.abs(fx - f_max))
-
-        if i_min > i_max:
-            i_min, i_max = i_max, i_min
-        #only using this range of frequency
-        X = X[i_min:i_max+1]
-        Y = Y[i_min:i_max+1]
-    
-    #computing the xcorrelation
-    x = safe_normalize(X).ravel()
-    y = safe_normalize(Y).ravel()
-    
-    #cross correlation
-    corr = correlate(x, y, mode='full')
-    #  lag = 0
-    zero_lag = len(x) - 1
-    #cross correlation with lag=0
-    xcorr = corr[zero_lag] / len(x)
-
-    return xcorr
 
 
 def xcorr_new(X,Y,washout,steps,dt=None):
@@ -278,31 +179,59 @@ def xcorr_new(X,Y,washout,steps,dt=None):
 
 
 def safe_normalize(v):
+    """
+    Safely normalizes an array by removing its mean and scaling by its standard deviation.
+    Handles edge cases where the standard deviation is zero or undefined.
+
+    Args:
+    - v : (array) Input array to normalize
+    
+    Returns:
+    - v_norm : (array) Normalized array (zero mean, unit variance), 
+                         or zeros if normalization is not possible
+    """
+
     std = np.std(v)
     if std == 0 or np.isnan(std):
-        return np.zeros_like(v)   # o v - np.mean(v)
+        return np.zeros_like(v)   # or alternatively: v - np.mean(v)
+    
     return (v - np.mean(v)) / std
-
 
 
 
 def power_spectrum(y, dt):
     """
-    Computes the FFT and returns frequency in cycles per discrete step.
+    Computes the power spectrum of a signal using the Fast Fourier Transform (FFT).
+
+    Args:
+    - y : (array) Input time series signal
+    - dt : (float) Time step between samples
+    
+    Returns:
+    - freqs : (array) Frequencies corresponding to the FFT components (in cycles per unit time)
+    - power : (array) Power spectrum of the signal
     """
+
     N = len(y)
     Y = np.fft.rfft(y - np.mean(y))
     power = np.abs(Y)**2 / N
-    freqs = np.fft.rfftfreq(N, dt)   # convert to cycles per discrete step
+    freqs = np.fft.rfftfreq(N, dt)   # convert to cycles per unit time
+
     return freqs, power
-
-
 
 
 def smooth_spectrum(power, window=5):
     """
-    Smooths a power spectrum using a moving average of given window size.
+    Smooths a power spectrum using a moving average filter.
+
+    Args:
+    - power : (array) Input power spectrum
+    - window : (int) Size of the moving average window
+    
+    Returns:
+    - power_smooth : (array) Smoothed power spectrum
     """
+
     kernel = np.ones(window) / window
     return np.convolve(power, kernel, mode="same")
 
@@ -360,8 +289,19 @@ def prediction_horizon(y_true, y_pred, window ,steps=None, washout=0, threshold=
 
 
 
-#tau for the embedding, using 1/e in the autocorrelation    
+#tau for the embedding, using 1/e in the autocorrelation      
 def tau_autocorr(signal):
+    """
+    Estimates the time delay (tau) for embedding based on the autocorrelation function.
+    The delay is defined as the first lag where the autocorrelation drops below 1/e.
+
+    Args:
+    - signal : (array) Input time series signal
+    
+    Returns:
+    - tau : (int) Estimated delay (first index where autocorrelation < 1/e)
+    - corr : (array) Normalized autocorrelation function (positive lags)
+    """
 
     signal = (signal - np.mean(signal)) / np.std(signal)
 
@@ -369,56 +309,107 @@ def tau_autocorr(signal):
     corr = corr[len(corr)//2:]      # positive lags 
     corr /= corr[0]                 # normalization
 
-    #  first index that the correlation is lower than 1/e
+    # first index where the correlation is lower than 1/e
     tau = np.where(corr < 1/np.e)[0][0]
 
-    return tau, corr        
-    
+    return tau, corr 
 
 
 # Function to create 3D embedding
 def embedding3D(signal, tau):
+    """
+    Constructs a 3D time-delay embedding of a time series.
+
+    Args:   
+    - signal : (array) Input time series signal
+    - tau : (int) Time delay for the embedding
+    
+    Returns:
+    - y0 : (array) Signal at time t
+    - y1 : (array) Signal at time t - tau
+    - y2 : (array) Signal at time t - 2*tau
+    """
+
     y0 = signal[2*tau:]    # x(t)
     y1 = signal[tau:-tau]  # x(t - tau)
     y2 = signal[:-2*tau]   # x(t - 2*tau)
+
     return y0, y1, y2
-    
+
+
+
 def xcorr_emb(X, Y, washout, steps):
     """
     Computes a similarity score between two sets of internal states X and Y
-    using PCA maximum cross-correlation (with centering).
+    using time-delay embedding and maximum cross-correlation.
+
+    Args:
+    - X : (array) First time series / internal states
+    - Y : (array) Second time series / internal states
+    - washout : (int) Number of initial samples to discard
+    - steps : (int) Number of time steps to consider after washout
+
+    Returns:
+    - xcorr : (float) Global similarity score between X and Y
     """
-    # Slice for steps
-    X = X[washout:washout+steps]
-    Y = Y[washout:washout+steps]
-    
+
+    # Slice for steady-state dynamics
+    X = X[washout:washout + steps]
+    Y = Y[washout:washout + steps]
+
+    # Estimate optimal embedding delay from autocorrelation
     tau, _ = tau_autocorr(X)
+
+    # 3D time-delay embedding of both signals
     X0, X1, X2 = embedding3D(X, tau)
     Y0, Y1, Y2 = embedding3D(Y, tau)
-    
+
     corr_vals = []
-    
+
+    # Compare each embedding dimension separately
     for Xc, Yc in zip([X0, X1, X2], [Y0, Y1, Y2]):
-        # Center
+
+        # Center signals (remove mean offset)
         x = Yc - np.mean(Yc)
         y = Xc - np.mean(Xc)
-        # Normalize
+
+        # Normalize signals (remove scale dependence)
         x = safe_normalize(x)
         y = safe_normalize(y)
-        # Max cross-correlation
+
+        # Maximum cross-correlation (allowing time shift)
         corr_vals.append(correlate(x, y, mode='full').max() / len(x))
-    
-    # Mean of the three PCA components
+
+    # Average similarity across embedding dimensions
     xcorr = np.mean(corr_vals)
-    
+
     return xcorr
 
 
 
 
 
-def draw_transparent_box(ax, lim=(-1,1), face_color='white', edge_color='black', face_alpha=0.08, edge_lw=2.0):
+def draw_transparent_box(ax, lim=(-1,1), face_color='white', edge_color='black',
+                         face_alpha=0.08, edge_lw=2.0):
+    """
+    Draws a transparent 3D bounding box in a Matplotlib 3D axis.
+
+
+    Args:
+    - ax : (Axes3D) Matplotlib 3D axis where the box is drawn
+    - lim : (tuple) (min, max) limits of the cube in all three axes
+    - face_color : (str) Color of the cube faces
+    - edge_color : (str) Color of the cube edges
+    - face_alpha : (float) Transparency of the cube faces
+    - edge_lw : (float) Line width of the cube edges
+
+    Returns:
+    - None
+    """
+
     r = [lim[0], lim[1]]
+
+    # Define the 6 faces of the cube
     faces = [
         [(r[0],r[0],r[0]),(r[1],r[0],r[0]),(r[1],r[1],r[0]),(r[0],r[1],r[0])],
         [(r[0],r[0],r[1]),(r[1],r[0],r[1]),(r[1],r[1],r[1]),(r[0],r[1],r[1])],
@@ -427,14 +418,30 @@ def draw_transparent_box(ax, lim=(-1,1), face_color='white', edge_color='black',
         [(r[0],r[0],r[0]),(r[0],r[1],r[0]),(r[0],r[1],r[1]),(r[0],r[0],r[1])],
         [(r[1],r[0],r[0]),(r[1],r[1],r[0]),(r[1],r[1],r[1]),(r[1],r[0],r[1])]
     ]
-    # Fondo semitransparente
-    poly = Poly3DCollection(faces, facecolors=face_color, edgecolors='none', alpha=face_alpha, zorder=0)
+
+    # Semi-transparent faces (filled volume)
+    poly = Poly3DCollection(
+        faces,
+        facecolors=face_color,
+        edgecolors='none',
+        alpha=face_alpha,
+        zorder=0
+    )
     ax.add_collection3d(poly)
 
-    
-    for s,e in combinations(product(r,r,r),2):
-        if sum(abs(s[i]-e[i]) for i in range(3)) == r[1]-r[0]:
-            ax.plot3D([s[0],e[0]], [s[1],e[1]], [s[2],e[2]], color=edge_color, linewidth=edge_lw, zorder=10)
+    # Wireframe edges (connect vertices that differ in exactly one axis)
+    for s, e in combinations(product(r, r, r), 2):
+        if sum(abs(s[i] - e[i]) for i in range(3)) == r[1] - r[0]:
+            ax.plot3D(
+                [s[0], e[0]],
+                [s[1], e[1]],
+                [s[2], e[2]],
+                color=edge_color,
+                linewidth=edge_lw,
+                zorder=10
+            )
+
+
 
 
 
@@ -444,16 +451,38 @@ def draw_data_box(ax, x_vals, y_vals, z_vals,
                   edge_color='black',
                   face_alpha=0.08,
                   edge_lw=2.0):
+    """
+    Draws a 3D bounding box that tightly encloses a set of data points.
 
+
+    Args:
+    - ax : (Axes3D) Matplotlib 3D axis where the box is drawn
+    - x_vals : (array) X coordinates of the data
+    - y_vals : (array) Y coordinates of the data
+    - z_vals : (array) Z coordinates of the data
+    - face_color : (str) Color of the box faces
+    - edge_color : (str) Color of the box edges
+    - face_alpha : (float) Transparency of the faces
+    - edge_lw : (float) Line width of the edges
+
+    Returns:
+    - None
+    """
+
+    # Compute bounding box limits from data
     x_min, x_max = np.min(x_vals), np.max(x_vals)
     y_min, y_max = np.min(y_vals), np.max(y_vals)
     z_min, z_max = np.min(z_vals), np.max(z_vals)
 
+    # Add padding to avoid tight clipping
     w = 0.5
-    r = [(x_min-w, x_max+w),
-         (y_min-w, y_max+w),
-         (z_min-w, z_max+w)]
+    r = [
+        (x_min - w, x_max + w),
+        (y_min - w, y_max + w),
+        (z_min - w, z_max + w)
+    ]
 
+    # Define cube faces
     faces = [
         [(r[0][0],r[1][0],r[2][0]),(r[0][1],r[1][0],r[2][0]),(r[0][1],r[1][1],r[2][0]),(r[0][0],r[1][1],r[2][0])],
         [(r[0][0],r[1][0],r[2][1]),(r[0][1],r[1][0],r[2][1]),(r[0][1],r[1][1],r[2][1]),(r[0][0],r[1][1],r[2][1])],
@@ -463,7 +492,7 @@ def draw_data_box(ax, x_vals, y_vals, z_vals,
         [(r[0][1],r[1][0],r[2][0]),(r[0][1],r[1][1],r[2][0]),(r[0][1],r[1][1],r[2][1]),(r[0][1],r[1][0],r[2][1])]
     ]
 
-   
+    # Create semi-transparent volume
     poly = Poly3DCollection(
         faces,
         facecolors=face_color,
@@ -471,15 +500,18 @@ def draw_data_box(ax, x_vals, y_vals, z_vals,
         alpha=face_alpha
     )
 
-    poly.set_zsort('min') 
+    poly.set_zsort('min')
     ax.add_collection3d(poly)
 
-    # --- ARISTAS ---
-    for s, e in combinations(product(*[(r[i][0], r[i][1]) for i in range(3)]), 2):
-        if sum(abs(s[i]-e[i]) for i in range(3)) in [
-            r[0][1]-r[0][0],
-            r[1][1]-r[1][0],
-            r[2][1]-r[2][0]
+    # Draw edges of the bounding box
+    for s, e in combinations(
+        product(*[(r[i][0], r[i][1]) for i in range(3)]),
+        2
+    ):
+        if sum(abs(s[i] - e[i]) for i in range(3)) in [
+            r[0][1] - r[0][0],
+            r[1][1] - r[1][0],
+            r[2][1] - r[2][0]
         ]:
             ax.plot3D(
                 [s[0], e[0]],

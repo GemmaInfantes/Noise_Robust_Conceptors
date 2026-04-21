@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.sparse import random 
-import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge
 import copy
 
@@ -67,8 +66,7 @@ def rnn_params(
 
 
 
-#paper first equation
-def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_Noise=None): #autonomous mode False by default
+def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_Noise=None): 
     """
     Forward pass of a recurrent neural network (RNN) .
 
@@ -100,8 +98,8 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
     N=params['w'].shape[0]
     # Creating the container for the state matrix
     X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
+    if conceptor is None:
+        conceptor = np.eye(x.shape[0]) 
     else:
         conceptor=conceptor
     # temporal loop
@@ -137,8 +135,8 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
 
 
 
-#paper first equation for rossler
-def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,std_Noise=None): #autonomous mode False by default
+
+def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,std_Noise=None): 
     """
     Forward pass of a recurrent neural network (RNN), autonomous+open loop combination .
 
@@ -170,8 +168,8 @@ def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,
     N=params['w'].shape[0]
     # Creating the container for the state matrix
     X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
+    if conceptor is None: 
+        conceptor = np.eye(x.shape[0]) 
     else:
         conceptor=conceptor
     # temporal loop
@@ -262,7 +260,7 @@ def ridge(beta,X,Y_target,step,params):
     bias_out = ridge_model.intercept_
     
     #Predict Y with this Wout    
-    Y_pred = X @ W_out.T + bias_out
+    # Y_pred = X @ W_out.T + bias_out
     
     #computing the mse
     # mse = np.mean((Y_pred[:-step] - Y_target[:-step])**2)
@@ -311,376 +309,6 @@ def std_noise_func(X,noise_perc):
     
 
  
-
-
-
-
-#introducing the quantization
-def forward_rnn_q(params, ut,z_max,z_min,seed,x_init=None, autonomous=False,conceptor=None,std_Noise=None,bits=10): #autonomous mode False by default
-    """
-    Forward pass of a recurrent neural network (RNN) .
-
-    Args:   
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - ut (ndarray): input to the RNN.
-    - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - z_max, z_min (float): for the scaling of the quantization
-    Returns:
-    - X (matriz): hidden satate for all the time series
-    
-    
-    use params_trained for every case that you use this function after training the model
-    """
-    #random number generator for the noise
-    prng = np.random.default_rng(seed)
-    
-    # initial x
-    if x_init is None:
-        x = params["x_ini"]
-    else:
-        x = x_init
-    x = np.ravel(x)      
-    T=len(ut)
-    N=params['w'].shape[0]
-    # Creating the container for the state matrix
-    X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
-    else:
-        conceptor=conceptor
-    # temporal loop
-   
-    for t_idx in range(T):#iterating through the time vector
-          
-        u_t = (
-            ut[t_idx] if not autonomous else np.dot(params["wout"], x) + params["bias_out"]
-            )
-        #The part inside the tanh (Non Lineality). firns quantization
-        dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-        # x=quantization(x,z_max,z_min,bits) 
-      
-        
-        # Updating 'leaky tanh', element-wise multiplication. Non-linearity
-        x = ((1 - params["a_dt"]) * x \
-             + params["a_dt"] * np.tanh(dentro))
-        #adding noise or not
-        if std_Noise is not None:
-            # r=prng.normal(0,std_Noise)
-            r=prng.normal(0,std_Noise,x.shape[0])
-            x=x+r
-        #Second quantization and noise or not
-        x=quantization(x,z_max,z_min,bits)
-        
-        #applyng the conceptors    
-        x=conceptor @ x
-        x=np.ravel(x)
-        # Storing the hidden state
-        X[t_idx] = x
-        
-    return X
-
-
-
-
-
-#claudio's and our's version
-def forward_rnn_q_p(params, ut,z_max,z_min,seed,x_init=None, autonomous=False,conceptor=None,std_Noise=None,bits=10,old_version=False): #autonomous mode False by default
-    """
-    Forward pass of a recurrent neural network (RNN) .
-
-    Args:   
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - ut (ndarray): input to the RNN.
-    - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - z_max, z_min (float): for the scaling of the quantization
-    - old_version (bool): True if we want use cludio's version for quantization and False if we want to use the new version
-    Returns:
-    - X (matriz): hidden satate for all the time series
-    
-    
-    use params_trained for every case that you use this function after training the model
-    """
-    #random number generator for the noise
-    prng = np.random.default_rng(seed)
-    
-    # initial x
-    if x_init is None:
-        x = params["x_ini"]
-    else:
-        x = x_init
-    x = np.ravel(x)      
-    T=len(ut)
-    N=params['w'].shape[0]
-    # Creating the container for the state matrix
-    X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
-    else:
-        conceptor=conceptor
-      
-    if old_version is False: #choosing the version of the equantion that we want to use    
-        for t_idx in range(T):#iterating through the time vector
-               
-            u_t = (
-                ut[t_idx] if not autonomous else np.dot(params["wout"], x) + params["bias_out"]
-                )
-                 
-            #The part inside the tanh (Non Lineality). firns quantization
-            dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-                 
-             
-            # Updating 'leaky tanh', element-wise multiplication.2nd quantization 
-            x = ((1 - params["a_dt"]) * quantization(x,z_max,z_min,bits) \
-                 + params["a_dt"] * np.tanh(dentro))
-             
-            #adding noise or not
-            if std_Noise is not None:
-                # r=prng.normal(0,std_Noise)
-                r=prng.normal(0,std_Noise,x.shape[0])
-                x=x+r
-            #3nd quantization and noise or not
-            x=quantization(x,z_max,z_min,bits)
-             
-            #applyng the conceptors    
-            x=conceptor @ x
-            x=np.ravel(x)
-            # Storing the hidden state
-            X[t_idx] = x
-             
-    if old_version is True: #choosing the version of the equantion that we want to use    
-        for t_idx in range(T):#iterating through the time vector
-               
-            u_t = (
-                ut[t_idx] if not autonomous else np.dot(params["wout"], x) + params["bias_out"]
-                )
-                 
-            #The part inside the tanh (Non Lineality). firns quantization
-            dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-                 
-             
-            #adding noise or not
-            if std_Noise is not None:
-                # r=prng.normal(0,std_Noise)
-                r=prng.normal(0,std_Noise,x.shape[0])
-                x = ((1 - params["a_dt"]) * x \
-                     + params["a_dt"] * quantization(np.tanh(dentro)+r,z_max,z_min,bits))
-             
-            #applyng the conceptors    
-            x=conceptor @ x
-            x=np.ravel(x)
-            # Storing the hidden state
-            X[t_idx] = x
-        
-    return X
-
-
-
-
-
-#introducing the quantization
-def forward_rnn_q_comb(params, ut,z_max,z_min,seed,steps_ol,x_init=None,conceptor=None,std_Noise=None,bits=10): #autonomous mode False by default
-    """
-    Forward pass of a recurrent neural network (RNN) .
-
-    Args:   
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - ut (ndarray): input to the RNN.
-    - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - z_max, z_min (float): for the scaling of the quantization
-    - steps_ol (int): number the steps for the open loop
-    Returns:
-    - X (matriz): hidden satate for all the time series
-    
-    
-    use params_trained for every case that you use this function after training the model
-    """
-    #random number generator for the noise
-    prng = np.random.default_rng(seed)
-    
-    # initial x
-    if x_init is None:
-        x = params["x_ini"]
-    else:
-        x = x_init
-    x = np.ravel(x)      
-    T=len(ut)
-    N=params['w'].shape[0]
-    # Creating the container for the state matrix
-    X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
-    else:
-        conceptor=conceptor
-    # temporal loop
-   
-    for t_idx in range(T):#iterating through the time vector
-          
-        if t_idx< (steps_ol+1):
-            u_t=ut[t_idx]
-        else:
-            u_t=np.dot(params["wout"], x) + params["bias_out"]
-            
-        #The part inside the tanh (Non Lineality). firns quantization
-        dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-            
-        # x=quantization(x,z_max,z_min,bits) 
-        
-        # Updating 'leaky tanh', element-wise multiplication. Non-linearity #aplico quantización en la x suelta orta vez, o da igual?
-        x = ((1 - params["a_dt"]) * x \
-             + params["a_dt"] * np.tanh(dentro))
-        
-        #adding noise or not
-        if std_Noise is not None:
-            # r=prng.normal(0,std_Noise)
-            r=prng.normal(0,std_Noise,x.shape[0])
-            x=x+r
-        #Second quantization and noise or not
-        x=quantization(x,z_max,z_min,bits)
-        
-        #applyng the conceptors    
-        x=conceptor @ x
-        x=np.ravel(x)
-        # Storing the hidden state
-        X[t_idx] = x
-        
-    return X
-
-
-#claudio's and our's version
-def forward_rnn_q_comb_p(params, ut,z_max,z_min,seed,steps_ol,x_init=None,conceptor=None,std_Noise=None,bits=10,old_version=False): #autonomous mode False by default
-    """
-    Forward pass of a recurrent neural network (RNN) .
-
-    Args:   
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - ut (ndarray): input to the RNN.
-    - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - z_max, z_min (float): for the scaling of the quantization
-    - steps_ol (int): number the steps for the open loop
-    - old_version (bool): True if we want use cludio's version for quantization and False if we want to use the new version
-    Returns:
-    - X (matriz): hidden satate for all the time series
-    
-    
-    use params_trained for every case that you use this function after training the model
-    """
-    #random number generator for the noise
-    prng = np.random.default_rng(seed)
-    
-    # initial x
-    if x_init is None:
-        x = params["x_ini"]
-    else:
-        x = x_init
-    x = np.ravel(x)      
-    T=len(ut)
-    N=params['w'].shape[0]
-    # Creating the container for the state matrix
-    X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
-    else:
-        conceptor=conceptor
-    # temporal loop
-   
-    if old_version is False: #choosing the version of the equantion that we want to use    
-        for t_idx in range(T):#iterating through the time vector
-              
-            if t_idx< (steps_ol+1):
-                u_t=ut[t_idx]
-            else:
-                u_t=np.dot(params["wout"], x) + params["bias_out"]
-                
-            #The part inside the tanh (Non Lineality). firns quantization
-            dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-                
-            
-            # Updating 'leaky tanh', element-wise multiplication.2nd quantization 
-            x = ((1 - params["a_dt"]) * quantization(x,z_max,z_min,bits) \
-                 + params["a_dt"] * np.tanh(dentro))
-            
-            #adding noise or not
-            if std_Noise is not None:
-                # r=prng.normal(0,std_Noise)
-                r=prng.normal(0,std_Noise,x.shape[0])
-                x=x+r
-            #3nd quantization and noise or not
-            x=quantization(x,z_max,z_min,bits)
-            
-            #applyng the conceptors    
-            x=conceptor @ x
-            x=np.ravel(x)
-            # Storing the hidden state
-            X[t_idx] = x
-            
-    if old_version is True: #choosing the version of the equantion that we want to use    
-        for t_idx in range(T):#iterating through the time vector
-              
-            if t_idx< (steps_ol+1):
-                u_t=ut[t_idx]
-            else:
-                u_t=np.dot(params["wout"], x) + params["bias_out"]
-                
-            #The part inside the tanh (Non Lineality). firns quantization
-            dentro = quantization(params["w"] @ x + params["win"] @ u_t + params["bias"],z_max,z_min,bits)
-                
-            
-            #adding noise or not
-            if std_Noise is not None:
-                # r=prng.normal(0,std_Noise)
-                r=prng.normal(0,std_Noise,x.shape[0])
-                x = ((1 - params["a_dt"]) * x \
-                     + params["a_dt"] * quantization(np.tanh(dentro)+r,z_max,z_min,bits))
-            
-            #applyng the conceptors    
-            x=conceptor @ x
-            x=np.ravel(x)
-            # Storing the hidden state
-            X[t_idx] = x
-        
-    return X
-
-
-
-
-
-#modeling the Quantization effects that can be introduced by the digitization process
-def quantization(z,z_max,z_min,bits=10):
-    """
-    Quantization effects are introduced by the digitization process, which maps both the continuous input and output of the MG node to discrete levels. Specifically, the system uses a 10-bit resolution to represent values between 0 and 1023.
-
-    Args:
-    - z: where we want to apply the quantization
-    - z_max: is the maximum value expected of z, without the noise
-    Returns:
-    - q: quantized output
-    """
-    #transforming the bits in intervals
-    v=(2**bits)-1
-    #rescaling to [0,v]:
-    z=((z - z_min) / (z_max - z_min)) * v
-    
-    #floor equation
-    floor=np.floor(z+0.5)
-    #final equation
-    q=np.minimum(v,np.maximum(0,floor))
-    
-    #going back to [z_min,z_max]
-    q= q / v * (z_max - z_min) + z_min
-    
-    return q
 
 
 
@@ -797,205 +425,11 @@ def denoising_CTC_m(params,ut_train1,std_noise,a_new,m):
 
 
 
-
-
-# def denoising_CTC_drift(params,ut_train1,std_noise,a_new,std_drift):
-#     """
-    
-#     Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
-
-#     Arg:
-#     - params (dict): dictionary containing the RNN parameters (weights and biases).
-#     - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-#     - ut_train1 (ndarray): input to the RNN.
-#     - a_new (float): Aperture for the cleaned conceptor.
-#     - std_drift (float): None if we dont want to add drift or float if we want to ad a % of drift
-    
-   
-#     Returns:
-#     - C_cct (ndarray): cleaned conceptor.
-    
-#     """
-#     #Running the ESN twice with diffenrent noises
-#     X_noi1=forward_rnn_d(params, ut_train1,42, None,False,None,std_drift,std_noise)
-#     X_noi2=forward_rnn_d(params, ut_train1,1234, None,False,None,std_drift,std_noise)
-    
-#     #Compute Cross-Correlation
-#     R_cross = np.dot(X_noi1.T, X_noi2) / X_noi1.shape[0]
-    
-#     #Symmetrize and PSD 
-#     R_final=0.5*(R_cross+R_cross.T)
-#     lamdaf, Uf = np.linalg.eigh(R_final)
-#     # Uf, lamdaf, _ = np.linalg.svd(R_final, full_matrices=False, hermitian=True)
-#     lamdaf[lamdaf<0]=0
-#     # lamdaf=np.abs(lamdaf)
-    
-#     #rebuilding R
-#     R_final=Uf @ np.diag(lamdaf) @ Uf.T
-    
-    
-#     #computing C
-#     a=a_new
-#     C_ctc= np.dot(R_final, np.linalg.inv(R_final + a ** (-2) * np.eye(R_final.shape[0])))
-    
-#     return C_ctc
-   
-
-
-
-   
-#denoising for the analog-digital situation    
-def denoising_CTC_q(params,ut_train1,std_noise,a_new,z_max,z_min,bits):
-    """
-    
-    Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
-
-    Arg:
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - ut_train1 (ndarray): input to the RNN.
-    - a_new (float): Aperture for the cleaned conceptor.
-    
-   
-    Returns:
-    - C_cct (ndarray): cleaned conceptor.
-    
-    """
-    #Running the ESN twice with diffenrent noises
-    X_noi1=forward_rnn_q(params, ut_train1,z_max,z_min,42, None,False,None,std_noise,bits)
-    X_noi2=forward_rnn_q(params, ut_train1,z_max,z_min,1234, None,False,None,std_noise,bits)
-    
-    #Compute Cross-Correlation
-    R_cross = np.dot(X_noi1.T, X_noi2) / X_noi1.shape[0]
-    
-    #Symmetrize and PSD 
-    R_final=0.5*(R_cross+R_cross.T)
-    lamdaf, Uf = np.linalg.eigh(R_final)
-    # Uf, lamdaf, _ = np.linalg.svd(R_final, full_matrices=False, hermitian=True)
-    lamdaf[lamdaf<0]=0
-    # lamdaf=np.abs(lamdaf)
-    
-    #rebuilding R
-    R_final=Uf @ np.diag(lamdaf) @ Uf.T
-    
-    
-    #computing C
-    a=a_new
-    C_ctc= np.dot(R_final, np.linalg.inv(R_final + a ** (-2) * np.eye(R_final.shape[0])))
-    
-    return C_ctc    
-
-
-#inclusing claudio's version and our version
-def denoising_CTC_q_p(params,ut_train1,std_noise,a_new,z_max,z_min,bits,version):
-    """
-    
-    Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
-
-    Arg:
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - ut_train1 (ndarray): input to the RNN.
-    - a_new (float): Aperture for the cleaned conceptor.
-    
-   
-    Returns:
-    - C_ctc (ndarray): cleaned conceptor.
-    
-    """
-    #Running the ESN twice with diffenrent noises
-    X_noi1=forward_rnn_q_p(params, ut_train1,z_max,z_min,42, None,False,None,std_noise,bits,version)
-    X_noi2=forward_rnn_q_p(params, ut_train1,z_max,z_min,1234, None,False,None,std_noise,bits,version)
-    
-    #Compute Cross-Correlation
-    R_cross = np.dot(X_noi1.T, X_noi2) / X_noi1.shape[0]
-    
-    #Symmetrize and PSD 
-    R_final=0.5*(R_cross+R_cross.T)
-    lamdaf, Uf = np.linalg.eigh(R_final)
-    # Uf, lamdaf, _ = np.linalg.svd(R_final, full_matrices=False, hermitian=True)
-    lamdaf[lamdaf<0]=0
-    # lamdaf=np.abs(lamdaf)
-    
-    #rebuilding R
-    R_final=Uf @ np.diag(lamdaf) @ Uf.T
-    
-    
-    #computing C
-    a=a_new
-    C_ctc= np.dot(R_final, np.linalg.inv(R_final + a ** (-2) * np.eye(R_final.shape[0])))
-    
-    return C_ctc    
-
     
 
-
-def denoising_CTC_m(params, ut_train1, std_noise, a_new, n):
-    """
-    Denoising ("cleaning") the conceptor using Cross-Trial Correlation with n trials.
-
-    Args:
-    - params (dict): RNN parameters
-    - ut_train1 (ndarray): input to the RNN
-    - std_noise (float): noise level
-    - a_new (float): aperture
-    - n (int): number of noisy trials
-
-    Returns:
-    - C_ctc (ndarray): cleaned conceptor
-    """
-    
-    rng = np.random.default_rng(42)
-
-    # generate n independent seeds
-    seeds = rng.integers(low=0, high=2**32 - 1, size=n)
-    # Run RNN n times with different noise realizations
-    X_trials = []
-    for seed in range(n):
-        X = forward_rnn(
-            params,
-            ut_train1,
-            seeds[seed],
-            None,
-            False,
-            None,
-            std_noise
-        )
-        X_trials.append(X)
-
-    T = X_trials[0].shape[0]
-
-    # Compute average cross-trial correlation
-    R_cross = np.zeros((X_trials[0].shape[1], X_trials[0].shape[1]))
-
-    for i in range(n):
-        for j in range(i+1, n):  
-            R_cross += X_trials[i].T @ X_trials[j] / T
-
-    R_cross /= (n*(n-1)/2)
-
-    # Symmetrize
-    R_final = 0.5 * (R_cross + R_cross.T)
-
-    # Enforce PSD
-    lamdaf, Uf = np.linalg.eigh(R_final)
-    lamdaf[lamdaf < 0] = 0
-    R_final = Uf @ np.diag(lamdaf) @ Uf.T
-
-    # Compute conceptor
-    a = a_new
-    C_ctc = R_final @ np.linalg.inv(
-        R_final + a**(-2) * np.eye(R_final.shape[0])
-    )
-
-    return C_ctc
-    
-
-    
-#paper first equation
 def forward_rnn_drift(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_drift=None,std_Noise=None): #autonomous mode False by default
     """
-    Forward pass of a recurrent neural network (RNN) .
+    Forward pass of a recurrent neural network (RNN) with uniform drift.
 
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
@@ -1025,8 +459,8 @@ def forward_rnn_drift(params, ut,seed=42,x_init=None, autonomous=False,conceptor
     N=params['w'].shape[0]
     # Creating the container for the state matrix
     X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
+    if conceptor is None: 
+        conceptor = np.eye(x.shape[0]) 
     else:
         conceptor=conceptor
     # temporal loop
@@ -1070,10 +504,9 @@ def forward_rnn_drift(params, ut,seed=42,x_init=None, autonomous=False,conceptor
         
     return X
 
-#paper first equation
 def forward_rnn_drift_new(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_drift=None,std_Noise=None): #autonomous mode False by default
     """
-    Forward pass of a recurrent neural network (RNN) .
+    Forward pass of a recurrent neural network (RNN) with random drift.
 
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
@@ -1104,8 +537,8 @@ def forward_rnn_drift_new(params, ut,seed=42,x_init=None, autonomous=False,conce
     N=params['w'].shape[0]
     # Creating the container for the state matrix
     X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
+    if conceptor is None: 
+        conceptor = np.eye(x.shape[0]) 
     else:
         conceptor=conceptor
     # temporal loop
@@ -1150,87 +583,6 @@ def forward_rnn_drift_new(params, ut,seed=42,x_init=None, autonomous=False,conce
     return X
 
 
-#paper first equation
-def forward_rnn_drift_comb(params, ut,seed=42,steps_ol=50,x_init=None,conceptor=None,std_drift=None,std_Noise=None): #autonomous mode False by default
-    """
-    Forward pass of a recurrent neural network (RNN) .
-
-    Args:   
-    - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - ut (ndarray): input to the RNN.
-    - seed : for the noise generator
-    - steps_ol : steps for the open loop
-    - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - d (float): 0 if we dont want to add drift or float if we want to ad a % of std_drift
-
-    Returns:
-    - X (matriz): hidden satate for all the time series
-    
-    
-    use params_trained for every case that you use this function after training the model
-    """
-    #random number generator for the noise
-    prng = np.random.default_rng(seed)
-    
-    # initial x
-    if x_init is None:
-        x = params["x_ini"]
-    else:
-        x = x_init
-    x = np.ravel(x)      
-    T=len(ut)
-    N=params['w'].shape[0]
-    # Creating the container for the state matrix
-    X = np.zeros((T, N))
-    if conceptor is None: # si es el primer paso, antes del entrenamiento
-        conceptor = np.eye(x.shape[0]) #hace un conceptor identidad
-    else:
-        conceptor=conceptor
-    # temporal loop
-   
-    for t_idx in range(T):#iterating through the time vector
-        if t_idx< (steps_ol+1): #firsts steps with open loop
-            u_t=ut[t_idx]
-        else: #closed loop
-            u_t=np.dot(params["wout"], x) + params["bias_out"]
-        
-        #drift or not
-        if t_idx<100:
-             
-            
-            #The part inside the tanh (Non Lineality)
-            dentro = params["w"] @ x \
-                + params["win"] @ u_t \
-                + params["bias"] 
-                
-        
-        else:
-            #The part inside the tanh (Non Lineality)
-            dentro = params["w"] @ x \
-                + params["win"] @ u_t \
-                + (params["bias"] +std_drift)
-               
-            
-        # Updating 'leaky tanh', element-wise multiplication
-        x = ((1 - params["a_dt"]) * x \
-             + params["a_dt"] * np.tanh(dentro)) 
-            
-        #noise    
-        if std_Noise is not None: #introducing the noise in all the x
-            # r=prng.normal(0,std_Noise)
-            r=prng.normal(0,std_Noise,x.shape[0])
-            x=x+r
-            
-        x=conceptor @ x
-        x=np.ravel(x)
-        # Storing the hidden state
-        X[t_idx] = x
-        
-    return X
-
-    
     
     
     
