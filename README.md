@@ -71,7 +71,7 @@ These scripts analyze the effect of noise on the reservoir dynamics and evaluate
   Evaluates one-step-ahead (open-loop) performance under noise. Computes the similarity of internal states using PCA and compares against the noise-free case across multiple trials.
 
 - **`ESN_denoise_pd_Rossler_ol.py`**  
-  Evaluates $p$-steps-ahead prediction under noise. Reports NRMSE over multiple trials for a range of prediction horizons.
+  Evaluates $p$-steps-ahead prediction under noise. Reports NRMSE over multiple trials for $-25 < p < 25$.
 
 - **`ESN_denoise_sw.py`**  
   Noise robustness analysis using a sine wave input. Compares autonomous outputs and PCA representations for:
