@@ -56,8 +56,6 @@ Results show that parameter drift significantly degrades the performance of stan
 
 ### Experiments under additive noise
 
-These scripts analyze the effect of noise on the reservoir dynamics and evaluate the performance of standard conceptors, CTC-based conceptors, and the no-conceptor case.
-
 - **`ESN_denoise_atractor_Rossler_aut.py`**  
   Studies the autonomous reconstruction of the Rössler attractor under noise. Compares performance with no conceptor, noisy conceptor, and CTC-based conceptor.
 
@@ -71,7 +69,7 @@ These scripts analyze the effect of noise on the reservoir dynamics and evaluate
   Evaluates one-step-ahead (open-loop) performance under noise. Computes the similarity of internal states using PCA and compares against the noise-free case across multiple trials.
 
 - **`ESN_denoise_pd_Rossler_ol.py`**  
-  Evaluates $p$-steps-ahead prediction under noise. Reports NRMSE over multiple trials for $-25 < p < 25$.
+  Evaluates $p$-steps-ahead prediction under noise. Reports NRMSE over multiple trials for $-25 < p < 25$ and a given level of noise.
 
 - **`ESN_denoise_sw.py`**  
   Noise robustness analysis using a sine wave input. Compares autonomous outputs and PCA representations for:
@@ -87,7 +85,6 @@ These scripts analyze the effect of noise on the reservoir dynamics and evaluate
 
 ### Experiments under parameter drift
 
-These scripts evaluate robustness against hardware-like degradation by introducing drift in the reservoir parameters, together with noise.
 
 - **`ESN_drift_Rossler.py`**  
   Introduces noise and **uniform drift**, and evaluates one-step-ahead prediction performance with and without CTC-based conceptors. Example outputs are visualized.
