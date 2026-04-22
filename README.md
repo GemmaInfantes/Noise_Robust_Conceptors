@@ -42,7 +42,7 @@ Results show that parameter drift significantly degrades the performance of stan
   - **`utils.py`**  
     Utility functions for visualization and result presentation.
 
----
+
 
 ### Conceptors: basic examples
 
@@ -52,7 +52,7 @@ Results show that parameter drift significantly degrades the performance of stan
 - **`Conceptors_sw.py`**  
   Computes and visualizes a conceptor for the internal states of a reservoir ($N=3$) driven by a sine wave.
 
----
+
 
 ### Experiments under additive noise
 
@@ -83,7 +83,7 @@ These scripts analyze the effect of noise on the reservoir dynamics and evaluate
 - **`PCA_rossler_noise.py`**  
   Visualizes the evolution of reservoir states under increasing noise levels using PCA, comparing no conceptor, noisy conceptor, and CTC-based conceptor.
 
----
+
 
 ### Experiments under parameter drift
 
@@ -101,7 +101,7 @@ These scripts evaluate robustness against hardware-like degradation by introduci
 - **`ESN_drift_heatmap_Rossler_new.py`**  
   Same as above, but for **random drift**. Produces heatmaps showing performance across noise–drift combinations.
 
----
+
 
 ### Results
 
