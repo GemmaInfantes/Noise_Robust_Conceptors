@@ -238,7 +238,7 @@ plt.rcParams.update({
     'xtick.labelsize': 24,
     'ytick.labelsize': 24,
     'legend.fontsize': 26,
-    'lines.linewidth': 3,
+    'lines.linewidth': 2.5,
     "axes.linewidth": 2.0,
     "axes.edgecolor": "black",
 })
@@ -323,8 +323,8 @@ fig.legend(
 axs[3].set_xlim(steps_in-steps_ol, steps-1-steps_ol)
 
 plt.tight_layout(rect=[0.05, 0, 0.88, 0.92])
-plt.savefig("plots/Figure5a-d.png", dpi=300, bbox_inches='tight')
-# plt.savefig("plots/Figure5a-d.pdf", dpi=300, bbox_inches='tight')
+# plt.savefig("plots/Figure5a-d.png", dpi=300, bbox_inches='tight')
+plt.savefig("plots/Figure5a-d.pdf", dpi=300, bbox_inches='tight')
 plt.show()
 
 # ==========================================================
@@ -346,7 +346,7 @@ data = [
 for ax, (PCA1, PCA2, color) in zip(axs.flat, data):
     ax.set_axisbelow(True)
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.scatter(PCA1, PCA2, color=color, s=s, alpha=1.0, zorder=5)
+    ax.scatter(PCA1, PCA2, color=color, s=s, alpha=1.0, zorder=4.5)
     ax.set_xlabel("PC1", fontsize=28)
     ax.set_ylabel("PC2", fontsize=28)
     ax.set_facecolor('none')
@@ -362,6 +362,6 @@ for ax in axs.flat:
     ax.set_ylim([pc2_min - 0.5, pc2_max + 0.5])
 
 plt.tight_layout()
-plt.savefig("plots/Figure5e-h.png", dpi=300, bbox_inches='tight', transparent=True)
-# plt.savefig("plots/Figure5e-h.pdf", dpi=300, bbox_inches='tight', transparent=True)
+# plt.savefig("plots/Figure5e-h.png", dpi=300, bbox_inches='tight', transparent=True)
+plt.savefig("plots/Figure5e-h.pdf", dpi=300, bbox_inches='tight', transparent=True)
 plt.show()

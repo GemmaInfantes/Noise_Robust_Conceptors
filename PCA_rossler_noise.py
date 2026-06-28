@@ -93,7 +93,8 @@ _,PCA1_id,PCA2_id,PCA3_id=PCA_3D(X1_id[washout:])
 
 
 #noise scan
-noise_std=[10,30,50,70,90]
+# noise_std=[10,30,50,70,90]
+noise_std=[0,0,0,0,0]
 
 # storing the PCAs
 PCA1_noi=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
@@ -216,7 +217,8 @@ for i, noise in enumerate(noise_std):
         PCA1_noi[steps_in:steps, i],
         PCA2_noi[steps_in:steps, i],
         s=20,
-        color=colors['without_C'],
+        # color=colors['without_C'],
+        color=colors['ideal'],
         alpha=1,
         label="Without C" if i == 0 else ""
     )

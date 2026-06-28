@@ -35,6 +35,12 @@ parser.add_argument("--window", type=int, default=50) #window fo ph
 parser.add_argument("--m", type=int, default=2) #realizations for ctc
 parser.add_argument("--f_max", type=float, default=0.175) #maximum for f
 parser.add_argument("--f_min", type=float, default=0.025) #minimum for f
+parser.add_argument(
+    "--corr",
+    type=lambda x: str(x).lower() in ['true', '1', 'yes', 'y'],
+    default=False,
+) #True: correlated noise, False: uncorrelated noise
+
 args = parser.parse_args()
 
 
@@ -63,7 +69,7 @@ a_new=args.a_new #aperture for the new conceptor CTC
 m=args.m
 flog_min=args.f_min
 flog_max=args.f_max
-
+corr=args.corr
 
 #Input Signal Rössler x
 data1 = pd.read_csv("Rossler_data/xRossler.txt", sep="\t",header=None,index_col=None)
@@ -157,7 +163,7 @@ for i in range(len(k)): #scan in increasing noise
             #########################################################################################
             
             label="Open loop  with Noise, without C"
-            X_noi_ol=forward_rnn(params, ut_train1, seed_noise[j],None,False,None,std_noise)
+            X_noi_ol=forward_rnn(params, ut_train1, seed_noise[j],None,False,None,std_noise,corr=corr)
             # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
             #noisy conceptor
             C_noi=compute_conceptor(X_noi_ol, a)
@@ -177,7 +183,7 @@ for i in range(len(k)): #scan in increasing noise
             #########################################################################################
             
             
-            X_noi_C_noi_ol=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_noi,std_noise)
+            X_noi_C_noi_ol=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_noi,std_noise,corr=corr)
             # trained_model_new(X_noi_C[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
         
             #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
@@ -196,9 +202,9 @@ for i in range(len(k)): #scan in increasing noise
             
             #first computing the CTC conceptor for each level of noise
             
-            C_ctc_m=denoising_CTC_m(params, ut_train1, std_noise, a_new,m)
+            C_ctc_m=denoising_CTC_m(params, ut_train1, std_noise, a_new,m,corr=corr)
             
-            X_noi_C_ctc_ol_m=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_ctc_m,std_noise)
+            X_noi_C_ctc_ol_m=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_ctc_m,std_noise,corr=corr)
             # trained_model_new(X_noi_C_ctc[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
             #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
             X_effective = X_noi_C_ctc_ol_m[washout:]
@@ -217,7 +223,7 @@ for i in range(len(k)): #scan in increasing noise
             #########################################################################################
             
             
-            X_noi=forward_rnn_comb(params_trained_noi, ut_train1, seed_noise[j],steps_ol,None,None,std_noise)
+            X_noi=forward_rnn_comb(params_trained_noi, ut_train1, seed_noise[j],steps_ol,None,None,std_noise,corr=corr)
             # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
             
             
@@ -229,7 +235,7 @@ for i in range(len(k)): #scan in increasing noise
             #########################################################################################
             
             
-            X_noi_C_noi=forward_rnn_comb(params_trained_C, ut_train1, seed_noise[j],steps_ol,None,C_noi,std_noise)
+            X_noi_C_noi=forward_rnn_comb(params_trained_C, ut_train1, seed_noise[j],steps_ol,None,C_noi,std_noise,corr=corr)
            
             
            
@@ -239,7 +245,7 @@ for i in range(len(k)): #scan in increasing noise
             
             #########################################################################################
             
-            X_noi_C_ctc_m=forward_rnn_comb(params_trained_CTC_m, ut_train1, seed_noise[j],steps_ol,None,C_ctc_m,std_noise)
+            X_noi_C_ctc_m=forward_rnn_comb(params_trained_CTC_m, ut_train1, seed_noise[j],steps_ol,None,C_ctc_m,std_noise,corr=corr)
            
             
             #obtaining the outputs
@@ -289,6 +295,10 @@ for i in range(len(k)): #scan in increasing noise
 
 ####################################################################################       
         
+if corr is True:
+    c='correlated'
+else:
+    c='uncorrelated'
         
 
 plt.rcParams.update({
@@ -396,13 +406,13 @@ plt.legend(
 plt.tight_layout()
 
 plt.savefig(
-    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new.png",
+    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new_{c}.png",
     dpi=300, bbox_inches="tight"
 )
-# plt.savefig(
-#     f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new.pdf",
-#     dpi=300, bbox_inches="tight"
-# )
+plt.savefig(
+    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new_{c}.pdf",
+    dpi=300, bbox_inches="tight"
+)
 plt.show()
 
 
@@ -483,14 +493,14 @@ plt.tight_layout()
 
 # ===================== SAVE =====================
 plt.savefig(
-    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}.png",
+    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.png",
     dpi=300, bbox_inches="tight"
 )
 
-# plt.savefig(
-#     f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}.pdf",
-#     dpi=300, bbox_inches="tight"
-# )
+plt.savefig(
+    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.pdf",
+    dpi=300, bbox_inches="tight"
+)
 
 plt.show()
 
@@ -547,7 +557,7 @@ C_id=compute_conceptor(X_id, a)
 #########################################################################################
         
 label="Open loop  with Noise, without C"
-X_noi_ol=forward_rnn(params, ut_train1, seed30,None,False,None,std_noise)
+X_noi_ol=forward_rnn(params, ut_train1, seed30,None,False,None,std_noise,corr=corr)
 # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
 #noisy conceptor
 C_noi=compute_conceptor(X_noi_ol, a)
@@ -566,9 +576,9 @@ params_trained_noi, mse = ridge(reg, X_effective, yt_train_effective,step,params
 #########################################################################################
         
 #first computing the CTC conceptor for each level of noise       
-C_ctc=denoising_CTC_m(params, ut_train1, std_noise, a_new,m)
+C_ctc=denoising_CTC_m(params, ut_train1, std_noise, a_new,m,corr=corr)
 label="Open loop  with Noise, with CTC C"
-X_noi_C_ctc_ol=forward_rnn(params, ut_train1, seed30,None,False,C_ctc,std_noise)
+X_noi_C_ctc_ol=forward_rnn(params, ut_train1, seed30,None,False,C_ctc,std_noise,corr=corr)
 # trained_model_new(X_noi_C_ctc[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
 #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
 X_effective = X_noi_C_ctc_ol[washout:]
@@ -589,7 +599,7 @@ params_trained_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params
         
 #########################################################################################
         
-X_noi=forward_rnn_comb(params_trained_noi, ut_train1, seed30,steps_ol,None,None,std_noise)
+X_noi=forward_rnn_comb(params_trained_noi, ut_train1, seed30,steps_ol,None,None,std_noise,corr=corr)
 # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
         
         
@@ -604,7 +614,7 @@ X_noi=forward_rnn_comb(params_trained_noi, ut_train1, seed30,steps_ol,None,None,
 #first computing the CTC conceptor for each level of noise
         
 
-X_noi_C_ctc=forward_rnn_comb(params_trained_CTC, ut_train1, seed30,steps_ol,None,C_ctc,std_noise)
+X_noi_C_ctc=forward_rnn_comb(params_trained_CTC, ut_train1, seed30,steps_ol,None,C_ctc,std_noise,corr=corr)
         
 
         
@@ -770,8 +780,9 @@ ax2.grid(True, linestyle='--', alpha=0.4)
 ax2.legend(frameon=True, framealpha=0.9)
 plt.tight_layout()
 
+
 plt.savefig(
-           "plots/Figure9a.png",
+           f"plots/Figure9a_{c}.png",
            dpi=300, bbox_inches='tight'
        )
 

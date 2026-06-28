@@ -66,7 +66,7 @@ def rnn_params(
 
 
 
-def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_Noise=None): 
+def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,std_Noise=None, corr=False): 
     """
     Forward pass of a recurrent neural network (RNN) .
 
@@ -78,6 +78,7 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
     - autonomous (boolean): True or False if we want to use this mode or not
     - conceptor (array): The conceptor we want to use or None
     - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
+    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise. 
 
     Returns:
     - X (matriz): hidden satate for all the time series
@@ -123,7 +124,10 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
         #noise 2.0    
         if std_Noise is not None: #introducing the noise in all the x
             # r=prng.normal(0,std_Noise)
-            r=prng.normal(0,std_Noise,x.shape[0])
+            if corr is False:
+                r=prng.normal(0,std_Noise,x.shape[0])
+            else:
+                r=prng.normal(0,std_Noise)
             x=x+r
             
         x=conceptor @ x
@@ -136,7 +140,7 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
 
 
 
-def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,std_Noise=None): 
+def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,std_Noise=None,corr=False): 
     """
     Forward pass of a recurrent neural network (RNN), autonomous+open loop combination .
 
@@ -148,7 +152,8 @@ def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,
     - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
     - conceptor (array): The conceptor we want to use or None
     - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-
+    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise. 
+    
     Returns:
     - X (matriz): hidden satate for all the time series
     
@@ -194,7 +199,10 @@ def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,
         #noise 2.0    
         if std_Noise is not None: #introducing the noise in all the x
             # r=prng.normal(0,std_Noise)
-            r=prng.normal(0,std_Noise,x.shape[0])
+            if corr is False:
+                r=prng.normal(0,std_Noise,x.shape[0])
+            else:
+                r=prng.normal(0,std_Noise)
             x=x+r
             
         x=conceptor @ x
@@ -315,7 +323,7 @@ def std_noise_func(X,noise_perc):
 
 
     
-def denoising_CTC(params,ut_train1,std_noise,a_new):
+def denoising_CTC(params,ut_train1,std_noise,a_new,corr=False):
     """
     
     Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
@@ -325,6 +333,7 @@ def denoising_CTC(params,ut_train1,std_noise,a_new):
     - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
     - ut_train1 (ndarray): input to the RNN.
     - a_new (float): Aperture for the cleaned conceptor.
+    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
     
    
     Returns:
@@ -332,8 +341,8 @@ def denoising_CTC(params,ut_train1,std_noise,a_new):
     
     """
     #Running the ESN twice with diffenrent noises
-    X_noi1=forward_rnn(params, ut_train1,42, None,False,None,std_noise)
-    X_noi2=forward_rnn(params, ut_train1,1234, None,False,None,std_noise)
+    X_noi1=forward_rnn(params, ut_train1,42, None,False,None,std_noise,corr)
+    X_noi2=forward_rnn(params, ut_train1,1234, None,False,None,std_noise,corr)
     
     #Compute Cross-Correlation
     R_cross = np.dot(X_noi1.T, X_noi2) / X_noi1.shape[0]
@@ -360,7 +369,7 @@ def denoising_CTC(params,ut_train1,std_noise,a_new):
 
 
 
-def denoising_CTC_m(params,ut_train1,std_noise,a_new,m):
+def denoising_CTC_m(params,ut_train1,std_noise,a_new,m,corr=False):
     """
     
     Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
@@ -371,7 +380,7 @@ def denoising_CTC_m(params,ut_train1,std_noise,a_new,m):
     - ut_train1 (ndarray): input to the RNN.
     - a_new (float): Aperture for the cleaned conceptor.
     - m (int): number of trials.
-    
+    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
    
     Returns:
     - C_ctc (ndarray): cleaned conceptor.
@@ -388,7 +397,7 @@ def denoising_CTC_m(params,ut_train1,std_noise,a_new,m):
     
     #Running the ESN twice with diffenrent noises
     for i in range(m):
-        X=forward_rnn(params, ut_train1,seed[i], None,False,None,std_noise)
+        X=forward_rnn(params, ut_train1,seed[i], None,False,None,std_noise,corr)
         Xi[i]=X
         
     N=Xi[0].shape[1]
