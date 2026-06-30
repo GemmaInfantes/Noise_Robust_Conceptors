@@ -237,6 +237,45 @@ def compute_conceptor(X, aperture,denoise_svd=False):
 
 
 
+
+
+
+
+def compute_conceptor_avg(params,ut_train1,std_noise,aperture,corr=False):
+    """
+    
+    Denoising ("cleaning") the conceptor using avareging internal states trials
+
+    Arg:
+    - params (dict): dictionary containing the RNN parameters (weights and biases).
+    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
+    - ut_train1 (ndarray): input to the RNN.
+    - aperture (float): Aperture for the cleaned conceptor.
+    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
+    
+   
+    Returns:
+    - C_cct (ndarray): cleaned conceptor.
+    
+    """
+    #Running the ESN twice with diffenrent noises
+    X_noi1=forward_rnn(params, ut_train1,42, None,False,None,std_noise,corr)
+    X_noi2=forward_rnn(params, ut_train1,1234, None,False,None,std_noise,corr)
+    
+    #Avareging the two trials
+    X_avg=(X_noi1+X_noi2)/2
+    
+    #computing the concpetor with the X_avg
+    R = np.dot(X_avg.T, X_avg) / X_avg.shape[0]
+    C = np.dot(R, np.linalg.inv(R + aperture ** (-2) * np.eye(R.shape[0])))
+
+    return C
+
+
+
+
+
+
 #getting Wout with ridge regression of Scikit-Learn
 def ridge(beta,X,Y_target,step,params):
     """

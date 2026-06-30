@@ -10,6 +10,7 @@ from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC_m
+from utils.rnn_utils import compute_conceptor_avg
 from utils.utils import xcorr_new
 from utils.utils import smooth_spectrum
 from utils.utils import prediction_horizon
@@ -118,10 +119,12 @@ trials=trials_noise*trials_esn
 xcorro_noi1=np.empty((len(k),trials),dtype=float)
 xcorro_noi_C_noi1=np.empty((len(k),trials),dtype=float)
 xcorro_noi_C_ctc1_m=np.empty((len(k),trials),dtype=float)
+xcorro_noi_C_avg=np.empty((len(k),trials),dtype=float)
 
 ph_noi=np.empty((len(k),trials),dtype=float)
 ph_noi_C_noi=np.empty((len(k),trials),dtype=float)
 ph_noi_C_ctc_m=np.empty((len(k),trials),dtype=float)
+ph_noi_C_avg=np.empty((len(k),trials),dtype=float)
 
 #starting the loop
 for i in range(len(k)): #scan in increasing noise
@@ -212,6 +215,27 @@ for i in range(len(k)): #scan in increasing noise
             #showing training X
             #training Wout with Xi 
             params_trained_CTC_m, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+
+            
+            ######################################################################################
+            
+            #Running in open loop with noise with avg conceptor
+            
+            #########################################################################################
+            
+            #first computing the CTC conceptor for each level of noise
+            
+            C_avg=compute_conceptor_avg(params, ut_train1, std_noise, a_new,corr=corr)
+            
+            X_noi_C_avg_ol=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_avg,std_noise,corr=corr)
+            # trained_model_new(X_noi_C_ctc[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
+            #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
+            X_effective = X_noi_C_avg_ol[washout:]
+            yt_train_effective = yt_train1[washout:]
+            #showing training X
+            #training Wout with Xi 
+            params_trained_C_avg, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+        
         
     
         
@@ -247,12 +271,22 @@ for i in range(len(k)): #scan in increasing noise
             
             X_noi_C_ctc_m=forward_rnn_comb(params_trained_CTC_m, ut_train1, seed_noise[j],steps_ol,None,C_ctc_m,std_noise,corr=corr)
            
+   
+            ######################################################################################
             
+            #Running in autonomous mode with noise with avg conceptor
+            
+            #########################################################################################
+            
+            X_noi_C_avg=forward_rnn_comb(params_trained_C_avg, ut_train1, seed_noise[j],steps_ol,None,C_avg,std_noise,corr=corr)
+           
+                     
             #obtaining the outputs
             Y_target=yt_train1[steps_ol:] #real data
             Y_noi = X_noi[steps_ol:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
             Y_noi_C_noi = X_noi_C_noi[steps_ol:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #autonomous with noise with noisy C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[steps_ol:] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #autonomous with noise with ctc C
+            Y_noi_C_avg = X_noi_C_avg[steps_ol:] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #autonomous with noise with avg C
             
             #transforming the array 
             y = np.asarray(Y_target).ravel()   
@@ -260,6 +294,7 @@ for i in range(len(k)): #scan in increasing noise
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
+            y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
             
     
             trial_index = idx * trials_noise + j #to store the results correctly
@@ -273,6 +308,7 @@ for i in range(len(k)): #scan in increasing noise
             xcorro_noi1[i,trial_index]=xcorr_new(y,y_noi,0,steps,dt)
             xcorro_noi_C_noi1[i,trial_index]=xcorr_new(y,y_noi_C_noi,0,steps,dt)
             xcorro_noi_C_ctc1_m[i,trial_index]=xcorr_new(y,y_noi_C_ctc_m,0,steps,dt)
+            xcorro_noi_C_avg[i,trial_index]=xcorr_new(y,y_noi_C_avg,0,steps,dt)
             
             
             ###########################################################################################
@@ -284,26 +320,24 @@ for i in range(len(k)): #scan in increasing noise
             _,ph_noi[i,trial_index]= prediction_horizon(y, y_noi,window,None,0,error_th,steps_th,lyap)
             _,ph_noi_C_noi[i,trial_index]= prediction_horizon(y, y_noi_C_noi,window,None,0,error_th,steps_th,lyap)
             _,ph_noi_C_ctc_m[i,trial_index]= prediction_horizon(y, y_noi_C_ctc_m,window,None,0,error_th,steps_th,lyap)
+            _,ph_noi_C_avg[i,trial_index]= prediction_horizon(y, y_noi_C_avg,window,None,0,error_th,steps_th,lyap)
             
     
     
             
             
-###################################################################################▬
+###################################################################################
+# BOXPLOTS
+###################################################################################
 
-#BOXPLOTS
-
-####################################################################################       
-        
-if corr is True:
-    c='correlated'
+if corr:
+    c = "correlated"
 else:
-    c='uncorrelated'
-        
+    c = "uncorrelated"
+
 
 plt.rcParams.update({
-    # Figure
-    "figure.figsize": (10, 6),
+    "figure.figsize": (8, 4),
 
     # Axis labels
     "axes.labelsize": 20,
@@ -316,196 +350,428 @@ plt.rcParams.update({
     # Legend
     "legend.fontsize": 18,
 
-    # Lines & markers
+    # Lines and markers
     "lines.linewidth": 2,
     "lines.markersize": 10,
 
     # Grid
-    "grid.alpha": 0.6,
+    "grid.alpha": 0.4,
     "grid.linestyle": "--",
-    
-    # ---- Axis spines (contorno) ----
-    "axes.linewidth": 1.8,      
-    "axes.edgecolor": "black",  
+
+    # Axis spines
+    "axes.linewidth": 1.8,
+    "axes.edgecolor": "black",
 })
 
 
+# Common properties
+positions = np.arange(len(k))*1.2
+tick_step = 2
+
+box_width = 0.18
+group_width = 0.25
+
+flierprops = dict(
+    marker="o",
+    markersize=3,
+    alpha=1,
+    markeredgecolor="black"
+)
 
 
-# # ===================== Prediction Horizon boxplots =====================
+def add_boxplot(data, box_positions, color):
+    """
+    Add a boxplot using the common format.
+    """
+    return plt.boxplot(
+        data,
+        positions=box_positions,
+        widths=box_width,
+        patch_artist=True,
+        showfliers=True,
+        whis=1.5,
+        flierprops=flierprops,
+        boxprops=dict(
+            facecolor=color,
+            edgecolor="black",
+            linewidth=1.5,
+            alpha=1.0
+        ),
+        medianprops=dict(
+            color="black",
+            linewidth=1.5
+        ),
+        whiskerprops=dict(
+            color="black",
+            linewidth=1.5
+        ),
+        capprops=dict(
+            color="black",
+            linewidth=1.5
+        )
+    )
+
+
+def format_boxplot(ylabel):
+    """
+    Apply the same axis format to every figure.
+    """
+    plt.xticks(
+        positions[::tick_step],
+        k[::tick_step]
+    )
+
+    plt.xlabel("% Noise", fontsize=20)
+    plt.ylabel(ylabel, fontsize=20)
+
+    plt.grid(
+        True,
+        linestyle="--",
+        alpha=0.4
+    )
+
+    plt.tight_layout()
+
+
+###################################################################################
+# PREDICTION HORIZON DATA
+###################################################################################
+
+data_ph_noC = [
+    ph_noi[i, :]
+    for i in range(len(k))
+]
+
+data_ph_Cnoi = [
+    ph_noi_C_noi[i, :]
+    for i in range(len(k))
+]
+
+data_ph_Cctc = [
+    ph_noi_C_ctc_m[i, :]
+    for i in range(len(k))
+]
+
+data_ph_Cavg = [
+    ph_noi_C_avg[i, :]
+    for i in range(len(k))
+]
+
+
+###################################################################################
+# 1. PREDICTION HORIZON: WITHOUT C, C_NOISY AND C_CTC
+###################################################################################
 
 plt.figure(figsize=(8, 4), dpi=300)
-positions = np.arange(len(k))
-width = 0.25
 
-data_noC  = [ph_noi[i, :] for i in range(len(k))]
-data_Cnoi = [ph_noi_C_noi[i, :] for i in range(len(k))]
-data_Cctc = [ph_noi_C_ctc_m[i, :] for i in range(len(k))]
-
-# Flier properties
-flierprops = dict(marker='o', markersize=3, alpha=1, markeredgecolor='black')
-
-# ===================== BOXES =====================
-bp1 = plt.boxplot(
-    data_noC,
-    positions=positions - width,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor='#B22222', edgecolor='black', linewidth=1.5, alpha=1.0),
-    medianprops=dict(color="black", linewidth=1),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.5)
+bp1 = add_boxplot(
+    data_ph_noC,
+    positions - group_width,
+    "#B22222"
 )
 
-bp2 = plt.boxplot(
-    data_Cnoi,
-    positions=positions,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor='#6BAED6', edgecolor='black', linewidth=1.5, alpha=1),
-    medianprops=dict(color="black", linewidth=1.5),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.5)
+bp2 = add_boxplot(
+    data_ph_Cnoi,
+    positions,
+    "#6BAED6"
 )
 
-bp3 = plt.boxplot(
-    data_Cctc,
-    positions=positions + width,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor="#1F4E79", edgecolor='black', linewidth=1.5, alpha=1),
-    medianprops=dict(color="black", linewidth=1.5),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.)
+bp3 = add_boxplot(
+    data_ph_Cctc,
+    positions + group_width,
+    "#1F4E79"
 )
 
-# ===================== AXES =====================
-tick_step = 2
-plt.xticks(positions[::tick_step], k[::tick_step])
+format_boxplot("Prediction Horizon")
 
-plt.xlabel("% Noise", fontsize=20)
-plt.ylabel("Prediction Horizon", fontsize=20)
-plt.grid(True, linestyle="--", alpha=0.4)
-
-# ===================== LEGEND =====================
 plt.legend(
-    [bp1["boxes"][0], bp2["boxes"][0], bp3["boxes"][0]],
-    ["Without C", r"With $C_{noisy}$", r"With $C_{ctc}$"],
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$"
+    ],
     frameon=True
 )
 
-plt.tight_layout()
+plt.savefig(
+    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_new_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
 
 plt.savefig(
-    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new_{c}.png",
-    dpi=300, bbox_inches="tight"
+    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_new_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
 )
-plt.savefig(
-    f"plots/PH_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_anew{a_new}_window{window}_error{error_th}_stepsth{steps_th}_traintime{time_len}_new_{c}.pdf",
-    dpi=300, bbox_inches="tight"
-)
+
 plt.show()
+plt.close()
 
 
+###################################################################################
+# 2. PREDICTION HORIZON: INCLUDING C_AVG
+###################################################################################
+
+plt.figure(figsize=(9, 5), dpi=300)
+
+# Four equally spaced boxes around each noise value
+offsets_4 = np.array([
+    -1.5,
+    -0.5,
+     0.5,
+     1.5
+]) * group_width
+
+bp1 = add_boxplot(
+    data_ph_noC,
+    positions + offsets_4[0],
+    "#B22222"
+)
+
+bp2 = add_boxplot(
+    data_ph_Cnoi,
+    positions + offsets_4[1],
+    "#6BAED6"
+)
+
+bp3 = add_boxplot(
+    data_ph_Cctc,
+    positions + offsets_4[2],
+    "#1F4E79"
+)
+
+bp4 = add_boxplot(
+    data_ph_Cavg,
+    positions + offsets_4[3],
+    "#009E9A"
+)
+
+format_boxplot("Prediction Horizon")
+
+plt.legend(
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0],
+        bp4["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$",
+        r"With $C_{avg}$"
+    ],
+    loc="lower center",
+    bbox_to_anchor=(0.5, 1.02),
+    ncol=4,
+    frameon=False,
+    # fontsize=13,
+    handlelength=0.7,
+    handleheight=0.6,
+    handletextpad=0.35,
+    columnspacing=0.9
+)
+
+plt.subplots_adjust(top=0.80)
 
 
-# # ===================== FFT xcorr boxplots =====================
+plt.savefig(
+    f"plots/PH_Cavg_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_new_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    f"plots/PH_Cavg_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_new_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
+
+
+###################################################################################
+# CROSS-CORRELATION DATA
+###################################################################################
+
+data_xcorr_noC = [
+    xcorro_noi1[i, :]
+    for i in range(len(k))
+]
+
+data_xcorr_Cnoi = [
+    xcorro_noi_C_noi1[i, :]
+    for i in range(len(k))
+]
+
+data_xcorr_Cctc = [
+    xcorro_noi_C_ctc1_m[i, :]
+    for i in range(len(k))
+]
+
+data_xcorr_Cavg = [
+    xcorro_noi_C_avg[i, :]
+    for i in range(len(k))
+]
+
+
+###################################################################################
+# 3. CROSS CORRELATION: WITHOUT C, C_NOISY AND C_CTC
+###################################################################################
 
 plt.figure(figsize=(8, 4), dpi=300)
-positions = np.arange(len(k))
-width = 0.25
 
-data_noC  = [xcorro_noi1[i, :] for i in range(len(k))]
-data_Cnoi = [xcorro_noi_C_noi1[i, :] for i in range(len(k))]
-data_Cctc = [xcorro_noi_C_ctc1_m[i, :] for i in range(len(k))]
-
-# Flier properties
-flierprops = dict(marker='o', markersize=3, alpha=1, markeredgecolor='black')
-
-# ===================== BOXES =====================
-bp1 = plt.boxplot(
-    data_noC,
-    positions=positions - width,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor='#B22222', edgecolor='black', linewidth=1.5, alpha=1.0),
-    medianprops=dict(color="black", linewidth=1.5),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.5)
+bp1 = add_boxplot(
+    data_xcorr_noC,
+    positions - group_width,
+    "#B22222"
 )
 
-bp2 = plt.boxplot(
-    data_Cnoi,
-    positions=positions,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor='#6BAED6', edgecolor='black', linewidth=1.5, alpha=1.0),
-    medianprops=dict(color="black", linewidth=1.5),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.5)
+bp2 = add_boxplot(
+    data_xcorr_Cnoi,
+    positions,
+    "#6BAED6"
 )
 
-bp3 = plt.boxplot(
-    data_Cctc,
-    positions=positions + width,
-    widths=0.18,
-    patch_artist=True,
-    showfliers=True,
-    whis=1.5,
-    flierprops=flierprops,
-    boxprops=dict(facecolor="#1F4E79", edgecolor='black', linewidth=1.5, alpha=1.0),
-    medianprops=dict(color="black", linewidth=1.5),
-    whiskerprops=dict(color='black', linewidth=1.5),   
-    capprops=dict(color='black', linewidth=1.5)
+bp3 = add_boxplot(
+    data_xcorr_Cctc,
+    positions + group_width,
+    "#1F4E79"
 )
 
-# ===================== AXES =====================
-tick_step = 2
-plt.xticks(positions[::tick_step], k[::tick_step])
+format_boxplot("Cross Correlation")
 
-plt.xlabel("% Noise", fontsize=18)
-plt.ylabel("Cross Correlation", fontsize=18)
-plt.grid(True, linestyle="--", alpha=0.4)
-
-# ===================== LEGEND =====================
 plt.legend(
-    [bp1["boxes"][0], bp2["boxes"][0], bp3["boxes"][0]],
-    ["Without C", r"With $C_{noisy}$", r"With $C_{ctc}$"],
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$"
+    ],
     frameon=True
 )
 
-plt.tight_layout()
-
-# ===================== SAVE =====================
 plt.savefig(
-    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.png",
-    dpi=300, bbox_inches="tight"
+    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
 )
 
 plt.savefig(
-    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.pdf",
-    dpi=300, bbox_inches="tight"
+    f"plots/newFFTxcorr_CTCm_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
 )
 
 plt.show()
+plt.close()
 
 
+###################################################################################
+# 4. CROSS CORRELATION: INCLUDING C_AVG
+###################################################################################
 
+# box_width=0.1
+
+plt.figure(figsize=(9, 5), dpi=300)
+
+bp1 = add_boxplot(
+    data_xcorr_noC,
+    positions + offsets_4[0],
+    "#B22222"
+)
+
+bp2 = add_boxplot(
+    data_xcorr_Cnoi,
+    positions + offsets_4[1],
+    "#6BAED6"
+)
+
+bp3 = add_boxplot(
+    data_xcorr_Cctc,
+    positions + offsets_4[2],
+    "#1F4E79"
+)
+
+bp4 = add_boxplot(
+    data_xcorr_Cavg,
+    positions + offsets_4[3],
+    "#009E9A"
+)
+
+format_boxplot("Cross Correlation")
+
+plt.legend(
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0],
+        bp4["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$",
+        r"With $C_{avg}$"
+    ],
+    loc="lower center",
+    bbox_to_anchor=(0.5, 1.02),
+    ncol=4,
+    frameon=False,
+    # fontsize=13,
+    handlelength=0.7,
+    handleheight=0.6,
+    handletextpad=0.35,
+    columnspacing=0.9
+)
+
+plt.subplots_adjust(top=0.80)
+
+plt.savefig(
+    f"plots/newFFTxcorr_Cavg_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    f"plots/newFFTxcorr_Cavg_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
 
 
 

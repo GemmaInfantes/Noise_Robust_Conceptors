@@ -9,6 +9,7 @@ from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC_m
+from utils.rnn_utils import compute_conceptor_avg
 from utils.utils import xcorr_PCA
 
 #Parameters that you can tune from terminal
@@ -25,7 +26,7 @@ parser.add_argument("--time_len", type=int, default=3000) #number of time steps 
 parser.add_argument("--N", type=int, default=200) #number of neurons
 parser.add_argument("--spectral_radius", type=float, default=1.6) #spectral radius
 parser.add_argument("--scaling", type=float, default=0.9) #scaling
-parser.add_argument("--m", type=int, default=3) #realization for the ctc
+parser.add_argument("--m", type=int, default=2) #realization for the ctc
 parser.add_argument(
     "--corr",
     type=lambda x: str(x).lower() in ['true', '1', 'yes', 'y'],
@@ -97,6 +98,7 @@ trials=trials_noise*trials_esn
 xcorrp_noi=np.empty((len(k),trials),dtype=float)
 xcorrp_noi_C_noi=np.empty((len(k),trials),dtype=float)
 xcorrp_noi_C_ctc_m=np.empty((len(k),trials),dtype=float)
+xcorrp_noi_C_avg=np.empty((len(k),trials),dtype=float)
 
 
 
@@ -191,7 +193,25 @@ for i in range(len(k)): #scan in increasing noise
             #showing training X
             #training Wout with Xi 
             params_trained_CTC_m, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+            ######################################################################################
             
+            #Running in open loop with noise with avg conceptor
+            
+            #########################################################################################
+            
+            #first computing the CTC conceptor for each level of noise
+            
+            C_avg=compute_conceptor_avg(params, ut_train1, std_noise, a_new,corr=corr)
+            
+            X_noi_C_avg=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_avg,std_noise,corr=corr)
+            
+            #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
+            X_effective = X_noi_C_avg[washout:]
+            yt_train_effective = yt_train1[washout:]
+            #showing training X
+            #training Wout with Xi 
+            params_trained_C_avg, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+             
             
             
             #obtaining the outputs
@@ -199,6 +219,7 @@ for i in range(len(k)): #scan in increasing noise
             Y_noi = X_noi[washout:washout+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #open loop with noise 
             Y_noi_C_noi = X_noi_C_noi[washout:washout+steps] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #open loop with noise with noisy C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:washout+steps] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #open loop with noise with ctc m C
+            Y_noi_C_avg = X_noi_C_avg[washout:washout+steps] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #open loop with noise with Avg C
             
             #transforming the array 
             y = np.asarray(Y_target[washout:washout+steps]).ravel()   
@@ -206,6 +227,7 @@ for i in range(len(k)): #scan in increasing noise
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
+            y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
            
             
             trial_index = idx * trials_noise + j #to store the results correctly
@@ -218,6 +240,7 @@ for i in range(len(k)): #scan in increasing noise
             xcorrp_noi[i,trial_index]=xcorr_PCA(X_id,X_noi,washout,steps)
             xcorrp_noi_C_noi[i,trial_index]=xcorr_PCA(X_id,X_noi_C_noi,washout,steps)
             xcorrp_noi_C_ctc_m[i,trial_index]=xcorr_PCA(X_id,X_noi_C_ctc_m,washout,steps)
+            xcorrp_noi_C_avg[i,trial_index]=xcorr_PCA(X_id,X_noi_C_avg,washout,steps)
             
             
 #Computing the mean  for each noise
@@ -225,12 +248,14 @@ for i in range(len(k)): #scan in increasing noise
 mxcorrp_noi=np.mean(xcorrp_noi,axis=1)
 mxcorrp_noi_C_noi=np.mean(xcorrp_noi_C_noi,axis=1)
 mxcorrp_noi_C_ctc_m=np.mean(xcorrp_noi_C_ctc_m,axis=1)
+mxcorrp_noi_C_avg=np.mean(xcorrp_noi_C_avg,axis=1)
 
 
 #Now computing the standard deviation
 std_xcorrp_noi=np.std(xcorrp_noi,axis=1)
 std_xcorrp_noi_C_noi=np.std(xcorrp_noi_C_noi,axis=1)
 std_xcorrp_noi_C_ctc_m=np.std(xcorrp_noi_C_ctc_m,axis=1)
+std_xcorrp_noi_C_avg=np.std(xcorrp_noi_C_avg,axis=1)
 
 plt.rcParams.update({
     # Figure
@@ -308,6 +333,63 @@ plt.savefig(
 
 plt.savefig(
     f"plots/PCAxcorr_CTCm_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
+    dpi=300, bbox_inches='tight'
+)
+plt.show()
+
+#-----------------------------Plot xcorr PCA C avg--------------------------------------
+plt.figure(figsize=(8, 4), dpi=300)
+
+plt.errorbar(
+    k, mxcorrp_noi, yerr=std_xcorrp_noi,
+    fmt='s', color='#B22222',alpha=0.8,
+    ecolor="black", elinewidth=2, capsize=6,
+    label="Without C"
+)
+
+plt.errorbar(
+    k, mxcorrp_noi_C_noi, yerr=std_xcorrp_noi_C_noi,
+    fmt='^', color='#6BAED6',alpha=0.8,
+    ecolor="black", elinewidth=2, capsize=6,
+    label=r"With $C_{noisy}$"
+)
+
+plt.errorbar(
+    k, mxcorrp_noi_C_ctc_m, yerr=std_xcorrp_noi_C_ctc_m,
+    fmt='o', color='#1F4E79',alpha=0.8,
+    ecolor="black", elinewidth=2, capsize=6,
+    label=r"With $C_{ctc}$"
+)
+
+plt.errorbar(
+    k, mxcorrp_noi_C_avg, yerr=std_xcorrp_noi_C_avg,
+    fmt='D', color='#009E9A',alpha=0.8, markersize=8,
+    ecolor="black", elinewidth=2, capsize=6,
+    label=r"With $C_{avg}$"
+)
+
+
+plt.xlabel(" % Noise", size=20)
+plt.ylabel("PCA Subspace Similarity",size=19)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend()
+
+# plt.savefig(
+#            "plots/Figure6a.png",
+#            dpi=300, bbox_inches='tight'
+#        )
+
+if corr is True:
+    c='correlated'
+else:
+    c='uncorrelated'
+plt.savefig(
+    f"plots/PCAxcorr_Cavg_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.png",
+    dpi=300, bbox_inches='tight'
+)
+
+plt.savefig(
+    f"plots/PCAxcorr_Cavg_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
     dpi=300, bbox_inches='tight'
 )
 plt.show()

@@ -38,7 +38,7 @@ reg=1 #regularization parameter in the Ride regression
 step=1 # number of steps that the model will predict
 sparsity=None
 seed=args.seed #seed for the noise
-
+corr=False #default False. True: Correlated noise, False: Uncorrelated noise 
 
 #Input Signal
 
@@ -93,8 +93,8 @@ _,PCA1_id,PCA2_id,PCA3_id=PCA_3D(X1_id[washout:])
 
 
 #noise scan
-# noise_std=[10,30,50,70,90]
-noise_std=[0,0,0,0,0]
+noise_std=[10,30,50,70,90]
+# noise_std=[0,0,0,0,0]
 
 # storing the PCAs
 PCA1_noi=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
@@ -123,7 +123,7 @@ for i in range(len(noise_std)):
     ####################################################################################
     
     #obtain matrix X1 (time, N) of internal states for all time points
-    X_noi=forward_rnn(params, ut_train1,seed, None,False,None,std_noise)
+    X_noi=forward_rnn(params, ut_train1,seed, None,False,None,std_noise,corr=corr)
     #Compute model conceptors noisy
     C_noi=compute_conceptor(X_noi, a)
     
@@ -145,7 +145,7 @@ for i in range(len(noise_std)):
     ####################################################################################
     
     #obtain matrix X1 (time, N) of internal states for all time points
-    X_noi_C_noi=forward_rnn(params, ut_train1,seed, None,False,C_noi,std_noise)
+    X_noi_C_noi=forward_rnn(params, ut_train1,seed, None,False,C_noi,std_noise,corr=corr)
     
     
     X_effective = X_noi_C_noi[washout:]
@@ -166,7 +166,7 @@ for i in range(len(noise_std)):
     
     C_ctc=denoising_CTC(params, ut_train1, std_noise, a)
     #obtain matrix X1 (time, N) of internal states for all time points
-    X_noi_C_ctc=forward_rnn(params, ut_train1,seed, None,False,C_ctc,std_noise)
+    X_noi_C_ctc=forward_rnn(params, ut_train1,seed, None,False,C_ctc,std_noise,corr=corr)
     
     X_effective = X_noi_C_ctc[washout:]
     yt_train_effective = yt_train1[washout:]
@@ -218,7 +218,7 @@ for i, noise in enumerate(noise_std):
         PCA2_noi[steps_in:steps, i],
         s=20,
         # color=colors['without_C'],
-        color=colors['ideal'],
+        color=colors['without_C'],
         alpha=1,
         label="Without C" if i == 0 else ""
     )

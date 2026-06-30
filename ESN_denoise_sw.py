@@ -40,6 +40,8 @@ sparsity=None
 noise_std=args.noise_std # %of noise
 seed=args.seed #seed for the noise
 steps_ol=30
+corr=False #default False. True: Correlated noise, False: Uncorrelated noise 
+
 
 #Input Signal
 def sin(T,t, A):
