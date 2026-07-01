@@ -9,6 +9,7 @@ from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC
+from utils.rnn_utils import compute_conceptor_avg
 from utils.utils import PCA_3D
 
 #Parameters that we can tune from the terminal
@@ -29,7 +30,7 @@ spectral_radius=1.6 #spectral radius of W
 scaling=0.9 #0.9 #input scaling
 bias_scaling=0.4 # tanh bias
 alpha=0.75 #Leakage 
-a=5 #Aperture. 
+a=10 #Aperture. 
 N=200 #Network size 
 # nu=2.5e-5 #Learning Rate 
 # beta=0.9 #Control gain 
@@ -109,7 +110,9 @@ PCA1_C_ctc=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
 PCA2_C_ctc=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
 PCA3_C_ctc=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
 
-
+PCA1_C_avg=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
+PCA2_C_avg=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
+PCA3_C_avg=np.empty((len(PCA1_id),len(noise_std)),dtype=float)
 
 for i in range(len(noise_std)):
     #computing the standard deviation for the noise
@@ -140,7 +143,7 @@ for i in range(len(noise_std)):
     
     ##################################################################################
     
-    #Running the open loop with noise with noisy C and comouting Wout
+    #Running the open loop with noise with noisy C and computing Wout
     
     ####################################################################################
     
@@ -164,7 +167,7 @@ for i in range(len(noise_std)):
     
     ####################################################################################
     
-    C_ctc=denoising_CTC(params, ut_train1, std_noise, a)
+    C_ctc=denoising_CTC(params, ut_train1, std_noise, a,corr=corr)
     #obtain matrix X1 (time, N) of internal states for all time points
     X_noi_C_ctc=forward_rnn(params, ut_train1,seed, None,False,C_ctc,std_noise,corr=corr)
     
@@ -174,8 +177,31 @@ for i in range(len(noise_std)):
     #training Wout with Xi 
     params_trained_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
     _,PCA1_C_ctc[:,i],PCA2_C_ctc[:,i],PCA3_C_ctc[:,i]=PCA_3D(X_noi_C_ctc[washout:])
+
+    ##################################################################################
     
-  
+    #Running the open loop with noise with C avg anc computing Wout
+    
+    ####################################################################################
+    
+    C_avg=compute_conceptor_avg(params, ut_train1, std_noise, a,corr=corr)
+    #obtain matrix X1 (time, N) of internal states for all time points
+    X_noi_C_avg=forward_rnn(params, ut_train1,seed, None,False,C_avg,std_noise,corr=corr)
+    
+    X_effective = X_noi_C_avg[washout:]
+    yt_train_effective = yt_train1[washout:]
+    
+    #training Wout with Xi 
+    params_trained_C_avg, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+    _,PCA1_C_avg[:,i],PCA2_C_avg[:,i],PCA3_C_avg[:,i]=PCA_3D(X_noi_C_avg[washout:])
+     
+ 
+    
+ 
+if corr:
+    c = "correlated"
+else:
+    c = "uncorrelated"    
 
 #limits for the plot
 steps_in=washout
@@ -186,6 +212,7 @@ colors = {
     'without_C': '#B22222',    # red
     'C_noisy': '#6BAED6',      # blue
     'C_ctc': '#1F4E79',        # blue
+    'C_avg': '#009E9A',        # blue
 }
 
 
@@ -242,6 +269,8 @@ for i, noise in enumerate(noise_std):
         alpha=1,
         label=r"With $C_{ctc}$" if i == 0 else ""
     )
+    
+
 
     for r in range(3):
         ax = axs[r, i]
@@ -286,8 +315,219 @@ plt.tight_layout(pad=0.1, rect=[0, 0.05, 1, 0.95])
 #     bbox_inches="tight"
 # )
 plt.savefig(
-    "plots/PCA_vs_noise.png",
+    "plots/PCA_vs_noise_{c}.png",
     dpi=300,
     bbox_inches="tight"
 )
 plt.show()
+
+
+
+
+
+##################################
+# PCA vs Noise (PC1 vs PC2) C_avg
+##################################
+
+n_noise = len(noise_std)
+
+fig, axs = plt.subplots(
+    4,
+    n_noise,
+    figsize=(3.5 * n_noise, 13),
+    sharex=True,
+    sharey=True,
+    squeeze=False
+)
+
+# White background
+fig.patch.set_facecolor("white")
+fig.patch.set_alpha(1)
+
+# Plot each PCA
+for i, noise in enumerate(noise_std):
+
+    # Row 0: Without C
+    axs[0, i].scatter(
+        PCA1_noi[steps_in:steps, i],
+        PCA2_noi[steps_in:steps, i],
+        s=20,
+        color=colors["without_C"],
+        alpha=1
+    )
+
+    # Row 1: With noisy C
+    axs[1, i].scatter(
+        PCA1_C_noi[steps_in:steps, i],
+        PCA2_C_noi[steps_in:steps, i],
+        s=20,
+        color=colors["C_noisy"],
+        alpha=1
+    )
+
+    # Row 2: With CTC C
+    axs[3, i].scatter(
+        PCA1_C_ctc[steps_in:steps, i],
+        PCA2_C_ctc[steps_in:steps, i],
+        s=20,
+        color=colors["C_ctc"],
+        alpha=1
+    )
+
+    # Row 3: With average C
+    axs[2, i].scatter(
+        PCA1_C_avg[steps_in:steps, i],
+        PCA2_C_avg[steps_in:steps, i],
+        s=20,
+        color=colors["C_avg"],
+        alpha=1
+    )
+
+    # Common format for all rows
+    for r in range(4):
+        ax = axs[r, i]
+
+        ax.set_facecolor("white")
+        ax.grid(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+
+# Unified axis limits
+pc1_min = min(
+    PCA1_noi.min(),
+    PCA1_C_noi.min(),
+    PCA1_C_ctc.min(),
+    PCA1_C_avg.min()
+)
+
+pc1_max = max(
+    PCA1_noi.max(),
+    PCA1_C_noi.max(),
+    PCA1_C_ctc.max(),
+    PCA1_C_avg.max()
+)
+
+pc2_min = min(
+    PCA2_noi.min(),
+    PCA2_C_noi.min(),
+    PCA2_C_ctc.min(),
+    PCA2_C_avg.min()
+)
+
+pc2_max = max(
+    PCA2_noi.max(),
+    PCA2_C_noi.max(),
+    PCA2_C_ctc.max(),
+    PCA2_C_avg.max()
+)
+
+pc1_margin = 0.05 * (pc1_max - pc1_min)
+pc2_margin = 0.05 * (pc2_max - pc2_min)
+
+for ax in axs.flat:
+    ax.set_xlim(
+        pc1_min - pc1_margin,
+        pc1_max + pc1_margin
+    )
+
+    ax.set_ylim(
+        pc2_min - pc2_margin,
+        pc2_max + pc2_margin
+    )
+
+
+# Noise labels below the fourth row
+for i, noise in enumerate(noise_std):
+    axs[3, i].set_xlabel(
+        f"{noise}",
+        fontsize=30,
+        labelpad=10
+    )
+
+
+# General x-axis title
+fig.text(
+    0.5,
+    0.015,
+    "Noise level (%)",
+    ha="center",
+    fontsize=30
+)
+
+
+# Legend
+handles = [
+    plt.Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="None",
+        markerfacecolor=colors["without_C"],
+        markeredgecolor="none",
+        markersize=15,
+        label="Without C"
+    ),
+    plt.Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="None",
+        markerfacecolor=colors["C_noisy"],
+        markeredgecolor="none",
+        markersize=15,
+        label=r"With $C_{noisy}$"
+    ),
+    plt.Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="None",
+        markerfacecolor=colors["C_ctc"],
+        markeredgecolor="none",
+        markersize=15,
+        label=r"With $C_{ctc}$"
+    ),
+    plt.Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="None",
+        markerfacecolor=colors["C_avg"],
+        markeredgecolor="none",
+        markersize=15,
+        label=r"With $C_{avg}$"
+    )
+]
+
+fig.legend(
+    handles=handles,
+    loc="upper center",
+    ncol=4,
+    frameon=False,
+    fontsize=30,
+    bbox_to_anchor=(0.5, 1.01),
+    columnspacing=1.5,
+    handletextpad=0.4
+)
+
+
+plt.tight_layout(
+    pad=0.1,
+    rect=[0, 0.055, 1, 0.94]
+)
+
+
+
+plt.savefig(
+    "plots/PCA_vs_noise_Cavg_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight",
+    facecolor="white"
+)
+
+plt.show()
+plt.close()

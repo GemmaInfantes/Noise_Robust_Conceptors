@@ -99,6 +99,7 @@ xcorrp_noi=np.empty((len(k),trials),dtype=float)
 xcorrp_noi_C_noi=np.empty((len(k),trials),dtype=float)
 xcorrp_noi_C_ctc_m=np.empty((len(k),trials),dtype=float)
 xcorrp_noi_C_avg=np.empty((len(k),trials),dtype=float)
+xcorrp_noi_C_id=np.empty((len(k),trials),dtype=float)
 
 
 
@@ -126,9 +127,15 @@ for i in range(len(k)): #scan in increasing noise
 
         ####################################################################################
 
-        #obtain matrix X1 (time, N) of internal states for all time points
-        X_id=forward_rnn(params, ut_train1, 42,x_init=None,autonomous=False,conceptor=None)
-        #Compute model conceptors
+        #obtain matrix X1 (time, N) of clean internal states
+        X_id=forward_rnn(
+            params, ut_train1, 42,
+            x_init=None, autonomous=False, conceptor=None
+        )
+
+        # Ideal conceptor: computed only from the noise-free reservoir states.
+        # It will subsequently be applied to noisy reservoir realizations.
+        C_id=compute_conceptor(X_id, a)
 
         #computing the standard deviation for the noise
         std_noise=std_noise_func(X_id,k[i])
@@ -174,6 +181,26 @@ for i in range(len(k)): #scan in increasing noise
             #showing training X
             #training Wout with Xi 
             params_trained_C, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+
+            ######################################################################################
+
+            #Running in open loop with noise with ideal conceptor
+
+            #########################################################################################
+
+            # C_id was computed from the clean states X_id, but the reservoir
+            # evaluated here receives the same noisy input realization.
+            X_noi_C_id=forward_rnn(
+                params, ut_train1, seed_noise[j], None, False,
+                C_id, std_noise, corr=corr
+            )
+
+            # Train a specific readout using the noisy states filtered by C_id.
+            X_effective = X_noi_C_id[washout:]
+            yt_train_effective = yt_train1[washout:]
+            params_trained_C_id, mse = ridge(
+                reg, X_effective, yt_train_effective, step, params
+            )
         
             ######################################################################################
             
@@ -220,6 +247,7 @@ for i in range(len(k)): #scan in increasing noise
             Y_noi_C_noi = X_noi_C_noi[washout:washout+steps] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #open loop with noise with noisy C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:washout+steps] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #open loop with noise with ctc m C
             Y_noi_C_avg = X_noi_C_avg[washout:washout+steps] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #open loop with noise with Avg C
+            Y_noi_C_id = X_noi_C_id[washout:washout+steps] @ params_trained_C_id['wout'].T + params_trained_C_id['bias_out'] #open loop with noise with ideal C
             
             #transforming the array 
             y = np.asarray(Y_target[washout:washout+steps]).ravel()   
@@ -228,6 +256,7 @@ for i in range(len(k)): #scan in increasing noise
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
             y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
+            y_noi_C_id = np.asarray(Y_noi_C_id).ravel()
            
             
             trial_index = idx * trials_noise + j #to store the results correctly
@@ -241,6 +270,7 @@ for i in range(len(k)): #scan in increasing noise
             xcorrp_noi_C_noi[i,trial_index]=xcorr_PCA(X_id,X_noi_C_noi,washout,steps)
             xcorrp_noi_C_ctc_m[i,trial_index]=xcorr_PCA(X_id,X_noi_C_ctc_m,washout,steps)
             xcorrp_noi_C_avg[i,trial_index]=xcorr_PCA(X_id,X_noi_C_avg,washout,steps)
+            xcorrp_noi_C_id[i,trial_index]=xcorr_PCA(X_id,X_noi_C_id,washout,steps)
             
             
 #Computing the mean  for each noise
@@ -249,6 +279,7 @@ mxcorrp_noi=np.mean(xcorrp_noi,axis=1)
 mxcorrp_noi_C_noi=np.mean(xcorrp_noi_C_noi,axis=1)
 mxcorrp_noi_C_ctc_m=np.mean(xcorrp_noi_C_ctc_m,axis=1)
 mxcorrp_noi_C_avg=np.mean(xcorrp_noi_C_avg,axis=1)
+mxcorrp_noi_C_id=np.mean(xcorrp_noi_C_id,axis=1)
 
 
 #Now computing the standard deviation
@@ -256,6 +287,7 @@ std_xcorrp_noi=np.std(xcorrp_noi,axis=1)
 std_xcorrp_noi_C_noi=np.std(xcorrp_noi_C_noi,axis=1)
 std_xcorrp_noi_C_ctc_m=np.std(xcorrp_noi_C_ctc_m,axis=1)
 std_xcorrp_noi_C_avg=np.std(xcorrp_noi_C_avg,axis=1)
+std_xcorrp_noi_C_id=np.std(xcorrp_noi_C_id,axis=1)
 
 plt.rcParams.update({
     # Figure
@@ -310,6 +342,12 @@ plt.errorbar(
     label=r"With $C_{ctc}$"
 )
 
+plt.errorbar(
+    k, mxcorrp_noi_C_id, yerr=std_xcorrp_noi_C_id,
+    fmt='*', color='#D4A017', alpha=0.8, markersize=8,
+    ecolor="black", elinewidth=2, capsize=6,
+    label=r"With $C_{ideal}$"
+)
 
 
 plt.xlabel(" % Noise", size=20)
@@ -327,12 +365,12 @@ if corr is True:
 else:
     c='uncorrelated'
 plt.savefig(
-    f"plots/PCAxcorr_CTCm_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.png",
+    f"plots/PCAxcorr_CTCm_vs_ideal_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.png",
     dpi=300, bbox_inches='tight'
 )
 
 plt.savefig(
-    f"plots/PCAxcorr_CTCm_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
+    f"plots/PCAxcorr_CTCm_vs_ideal_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
     dpi=300, bbox_inches='tight'
 )
 plt.show()
@@ -369,6 +407,8 @@ plt.errorbar(
 )
 
 
+
+
 plt.xlabel(" % Noise", size=20)
 plt.ylabel("PCA Subspace Similarity",size=19)
 plt.grid(True, linestyle='--', alpha=0.6)
@@ -384,12 +424,12 @@ if corr is True:
 else:
     c='uncorrelated'
 plt.savefig(
-    f"plots/PCAxcorr_Cavg_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.png",
+    f"plots/PCAxcorr_Cavg_and_ideal_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.png",
     dpi=300, bbox_inches='tight'
 )
 
 plt.savefig(
-    f"plots/PCAxcorr_Cavg_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
+    f"plots/PCAxcorr_Cavg_and_ideal_ol_N{N}_m{m}_trials{trials}_noisestep{args.noise_steps}_maxnoise{args.noise_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_new_{c}.pdf",
     dpi=300, bbox_inches='tight'
 )
 plt.show()

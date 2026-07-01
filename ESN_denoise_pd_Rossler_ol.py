@@ -9,6 +9,7 @@ from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC_m
+from utils.rnn_utils import compute_conceptor_avg
 from utils.utils import NRMSE
 
 #Parameters that you can tune from terminal
@@ -27,6 +28,11 @@ parser.add_argument("--noise", type=int, default=50) #% of noise
 parser.add_argument("--p", type=int, default=25) #max steps to predict
 parser.add_argument("--p_steps", type=int, default=1) # steps to predict
 parser.add_argument("--m", type=int, default=2) # number of realizations of CTC
+parser.add_argument(
+    "--corr",
+    type=lambda x: str(x).lower() in ['true', '1', 'yes', 'y'],
+    default=False,
+) #True: correlated noise, False: uncorrelated noise
 
 args = parser.parse_args()
 
@@ -61,6 +67,7 @@ time_len=args.time_len #number of points that we want to us eto train the Reserv
 steps=args.steps
 sparsity=None
 a_new=args.a_new
+corr=args.corr
 
 #Input Signal Rössler x
 data1 = pd.read_csv("Rossler_data/xRossler.txt", sep="\t",header=None,index_col=None)
@@ -97,6 +104,7 @@ nrmse_C_noi=np.empty((len(p1),trials),dtype=float)
 nrmse_noi_C_ctc=np.empty((len(p1),trials),dtype=float)
 nrmse_id=np.empty((len(p1),trials),dtype=float)
 nrmse_noi_C_ctc_m=np.empty((len(p1),trials),dtype=float)
+nrmse_noi_C_avg=np.empty((len(p1),trials),dtype=float)
 
 for idx, p in enumerate(p1):
     #create shifted input and output, the output is the target
@@ -153,7 +161,7 @@ for idx, p in enumerate(p1):
             #########################################################################################
                 
                 
-            X_noi=forward_rnn(params, ut_train1, seed_noise[j],None,False,None,std_noise)
+            X_noi=forward_rnn(params, ut_train1, seed_noise[j],None,False,None,std_noise,corr=corr)
             # trained_model_new(X_noi[washout:],ut_train1,yt_train1,params_trained,washout,True,None,label)
             #noisy conceptor
             C_noi=compute_conceptor(X_noi, a)
@@ -176,7 +184,7 @@ for idx, p in enumerate(p1):
             #########################################################################################
                 
                 
-            X_noi_C_noi=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_noi,std_noise)
+            X_noi_C_noi=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_noi,std_noise,corr=corr)
                 
             
             #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
@@ -195,9 +203,9 @@ for idx, p in enumerate(p1):
                 
             #first computing the CTC conceptor for each level of noise
                 
-            C_ctc_m=denoising_CTC_m(params, ut_train1, std_noise, a_new,m)
+            C_ctc_m=denoising_CTC_m(params, ut_train1, std_noise, a_new,m,corr=corr)
                 
-            X_noi_C_ctc_m=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_ctc_m,std_noise)
+            X_noi_C_ctc_m=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_ctc_m,std_noise,corr=corr)
                 
             #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
             X_effective = X_noi_C_ctc_m[washout:]
@@ -206,12 +214,32 @@ for idx, p in enumerate(p1):
             #training Wout with Xi 
             params_trained_CTC_m, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
             
+            ######################################################################################
                 
+            #Running in open loop with noise with avg conceptor
+                
+            #########################################################################################
+                
+            #first computing the avg conceptor for each level of noise
+                
+            C_avg=compute_conceptor_avg(params, ut_train1, std_noise, a_new,corr=corr)
+                
+            X_noi_C_avg=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_avg,std_noise,corr=corr)
+                
+            #getting the final Wout with the ridge regression (Wout=Ytarget*X.T*(X*X.T+beta*I)^-1)
+            X_effective = X_noi_C_avg[washout:]
+            yt_train_effective = yt_train1[washout:]
+            #showing training X
+            #training Wout with Xi 
+            params_trained_C_avg, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
+            
+                 
             
             Y_target=yt_train1 #real data
             Y_noi = X_noi[washout:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #open loop with noise 
             Y_noi_C_noi = X_noi_C_noi[washout:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #open loop with noise with noisy C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #open loop with noise with ctc m C
+            Y_noi_C_avg = X_noi_C_avg[washout:] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #open loop with noise with avg C
             
             #transforming the array 
             y = np.asarray(Y_target[washout:]).ravel()   
@@ -219,6 +247,7 @@ for idx, p in enumerate(p1):
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
+            y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
             
             ###########################################################################################
                    
@@ -229,7 +258,13 @@ for idx, p in enumerate(p1):
             nrmse_noi[idx,trial_index]        = NRMSE(y, y_noi)
             nrmse_C_noi[idx,trial_index]  = NRMSE(y, y_noi_C_noi)
             nrmse_noi_C_ctc_m[idx,trial_index]  = NRMSE(y, y_noi_C_ctc_m)
+            nrmse_noi_C_avg[idx,trial_index]  = NRMSE(y, y_noi_C_avg)
 
+
+if corr:
+    c = "correlated"
+else:
+    c = "uncorrelated"   
 
 # Style settings 
 plt.rcParams.update({
@@ -274,6 +309,9 @@ std_C_noi = np.std(nrmse_C_noi, axis=1)
 
 mean_C_ctc_m = np.mean(nrmse_noi_C_ctc_m, axis=1)
 std_C_ctc_m = np.std(nrmse_noi_C_ctc_m, axis=1)
+
+mean_C_avg = np.mean(nrmse_noi_C_avg, axis=1)
+std_C_avg = np.std(nrmse_noi_C_avg, axis=1)
 
 
 
@@ -331,7 +369,7 @@ plt.legend()
 
 # Save figure
 plt.savefig(
-    f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.png",
+    f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
     dpi=300, bbox_inches='tight'
 )
 
@@ -342,6 +380,84 @@ plt.savefig(
 
 plt.show()
 
+# ----------------------------- Plot NRMSE with CTC avg --------------------------------------
+plt.figure(figsize=(8,4), dpi=300)
+ax = plt.gca()
+ax.set_axisbelow(True) 
+# Without C
+plt.plot(
+    p1, mean_noi,
+    color='#B22222', alpha=0.9,
+    marker='s', label="Without C"
+)
+plt.fill_between(
+    p1,
+    mean_noi - std_noi,
+    mean_noi + std_noi,
+    color='#B22222', alpha=0.25
+)
+
+# With C_noisy
+plt.plot(
+    p1, mean_C_noi,
+    color='#6BAED6', alpha=0.9,
+    marker='^', 
+    label=r"With $C_{noisy}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_noi - std_C_noi,
+    mean_C_noi + std_C_noi,
+    color='#6BAED6', alpha=0.25
+)
+
+# With C_ctc
+plt.plot(
+    p1, mean_C_ctc_m,
+    color='#1F4E79', alpha=0.9,
+    marker='o', 
+    label=r"With $C_{ctc}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_ctc_m - std_C_ctc_m,
+    mean_C_ctc_m + std_C_ctc_m,
+    color='#1F4E79', alpha=0.25
+)
+
+# With C_ctc
+plt.plot(
+    p1, mean_C_avg,
+    color='#009E9A', alpha=0.9,
+    marker='D', 
+    label=r"With $C_{avg}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_avg - std_C_avg,
+    mean_C_avg + std_C_avg,
+    color='#009E9A', alpha=0.25
+)
+
+# Labels and style
+plt.xlabel(r"$p$ (prediction steps)", size=20)
+plt.ylabel("NRMSE", size=20)
+
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend()
+
+# Save figure
+plt.savefig(
+    f"plots/NRMSE_Cavg_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
+    dpi=300, bbox_inches='tight'
+)
+
+# plt.savefig(
+#     f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_new.pdf",
+#     dpi=300, bbox_inches='tight'
+# )
+
+plt.show()
 
 
 

@@ -119,11 +119,13 @@ trials=trials_noise*trials_esn
 xcorro_noi1=np.empty((len(k),trials),dtype=float)
 xcorro_noi_C_noi1=np.empty((len(k),trials),dtype=float)
 xcorro_noi_C_ctc1_m=np.empty((len(k),trials),dtype=float)
+xcorro_noi_C_id=np.empty((len(k),trials),dtype=float)
 xcorro_noi_C_avg=np.empty((len(k),trials),dtype=float)
 
 ph_noi=np.empty((len(k),trials),dtype=float)
 ph_noi_C_noi=np.empty((len(k),trials),dtype=float)
 ph_noi_C_ctc_m=np.empty((len(k),trials),dtype=float)
+ph_noi_C_id=np.empty((len(k),trials),dtype=float)
 ph_noi_C_avg=np.empty((len(k),trials),dtype=float)
 
 #starting the loop
@@ -195,6 +197,24 @@ for i in range(len(k)): #scan in increasing noise
             #showing training X
             #training Wout with Xi 
             params_trained_C, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+
+
+            ######################################################################################
+
+            #Running in open loop with noise with the ideal conceptor
+            #C_id was computed from the noise-free reservoir states X_id
+
+            #########################################################################################
+
+            X_noi_C_id_ol = forward_rnn(
+                params, ut_train1, seed_noise[j], None, False, C_id, std_noise, corr=corr
+            )
+
+            X_effective = X_noi_C_id_ol[washout:]
+            yt_train_effective = yt_train1[washout:]
+            params_trained_C_id, mse = ridge(
+                reg, X_effective, yt_train_effective, step, params
+            )
         
             
             ######################################################################################
@@ -260,6 +280,18 @@ for i in range(len(k)): #scan in increasing noise
             
             
             X_noi_C_noi=forward_rnn_comb(params_trained_C, ut_train1, seed_noise[j],steps_ol,None,C_noi,std_noise,corr=corr)
+
+
+            ######################################################################################
+
+            #Running in autonomous mode with noise with the ideal conceptor
+
+            #########################################################################################
+
+            X_noi_C_id = forward_rnn_comb(
+                params_trained_C_id, ut_train1, seed_noise[j], steps_ol,
+                None, C_id, std_noise, corr=corr
+            )
            
             
            
@@ -285,6 +317,7 @@ for i in range(len(k)): #scan in increasing noise
             Y_target=yt_train1[steps_ol:] #real data
             Y_noi = X_noi[steps_ol:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
             Y_noi_C_noi = X_noi_C_noi[steps_ol:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #autonomous with noise with noisy C
+            Y_noi_C_id = X_noi_C_id[steps_ol:] @ params_trained_C_id['wout'].T + params_trained_C_id['bias_out'] #autonomous with noise with ideal C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[steps_ol:] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #autonomous with noise with ctc C
             Y_noi_C_avg = X_noi_C_avg[steps_ol:] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #autonomous with noise with avg C
             
@@ -293,6 +326,7 @@ for i in range(len(k)): #scan in increasing noise
             
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
+            y_noi_C_id = np.asarray(Y_noi_C_id).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
             y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
             
@@ -307,6 +341,7 @@ for i in range(len(k)): #scan in increasing noise
     
             xcorro_noi1[i,trial_index]=xcorr_new(y,y_noi,0,steps,dt)
             xcorro_noi_C_noi1[i,trial_index]=xcorr_new(y,y_noi_C_noi,0,steps,dt)
+            xcorro_noi_C_id[i,trial_index]=xcorr_new(y,y_noi_C_id,0,steps,dt)
             xcorro_noi_C_ctc1_m[i,trial_index]=xcorr_new(y,y_noi_C_ctc_m,0,steps,dt)
             xcorro_noi_C_avg[i,trial_index]=xcorr_new(y,y_noi_C_avg,0,steps,dt)
             
@@ -319,6 +354,7 @@ for i in range(len(k)): #scan in increasing noise
     
             _,ph_noi[i,trial_index]= prediction_horizon(y, y_noi,window,None,0,error_th,steps_th,lyap)
             _,ph_noi_C_noi[i,trial_index]= prediction_horizon(y, y_noi_C_noi,window,None,0,error_th,steps_th,lyap)
+            _,ph_noi_C_id[i,trial_index]= prediction_horizon(y, y_noi_C_id,window,None,0,error_th,steps_th,lyap)
             _,ph_noi_C_ctc_m[i,trial_index]= prediction_horizon(y, y_noi_C_ctc_m,window,None,0,error_th,steps_th,lyap)
             _,ph_noi_C_avg[i,trial_index]= prediction_horizon(y, y_noi_C_avg,window,None,0,error_th,steps_th,lyap)
             
@@ -452,6 +488,11 @@ data_ph_Cctc = [
     for i in range(len(k))
 ]
 
+data_ph_Cid = [
+    ph_noi_C_id[i, :]
+    for i in range(len(k))
+]
+
 data_ph_Cavg = [
     ph_noi_C_avg[i, :]
     for i in range(len(k))
@@ -521,7 +562,93 @@ plt.close()
 
 
 ###################################################################################
-# 2. PREDICTION HORIZON: INCLUDING C_AVG
+# 2. PREDICTION HORIZON: NO C, C_NOISY, C_CTC AND IDEAL C
+###################################################################################
+
+plt.figure(figsize=(9, 5), dpi=300)
+
+offsets_4 = np.array([
+    -1.5,
+    -0.5,
+     0.5,
+     1.5
+]) * group_width
+
+bp1 = add_boxplot(
+    data_ph_noC,
+    positions + offsets_4[0],
+    "#B22222"
+)
+
+bp2 = add_boxplot(
+    data_ph_Cnoi,
+    positions + offsets_4[1],
+    "#6BAED6"
+)
+
+bp3 = add_boxplot(
+    data_ph_Cctc,
+    positions + offsets_4[2],
+    "#1F4E79"
+)
+
+bp4 = add_boxplot(
+    data_ph_Cid,
+    positions + offsets_4[3],
+    "#6A51A3"
+)
+
+format_boxplot("Prediction Horizon")
+
+plt.legend(
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0],
+        bp4["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$",
+        r"With $C_{ideal}$"
+    ],
+    loc="lower center",
+    bbox_to_anchor=(0.5, 1.02),
+    ncol=4,
+    frameon=False,
+    handlelength=0.7,
+    handleheight=0.6,
+    handletextpad=0.35,
+    columnspacing=0.9
+)
+
+plt.subplots_adjust(top=0.80)
+
+plt.savefig(
+    f"plots/PH_CTC_vs_ideal_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    f"plots/PH_CTC_vs_ideal_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_anew{a_new}_window{window}_error{error_th}"
+    f"_stepsth{steps_th}_traintime{time_len}_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
+
+
+###################################################################################
+# 3. PREDICTION HORIZON: INCLUDING C_AVG
 ###################################################################################
 
 plt.figure(figsize=(9, 5), dpi=300)
@@ -628,6 +755,11 @@ data_xcorr_Cctc = [
     for i in range(len(k))
 ]
 
+data_xcorr_Cid = [
+    xcorro_noi_C_id[i, :]
+    for i in range(len(k))
+]
+
 data_xcorr_Cavg = [
     xcorro_noi_C_avg[i, :]
     for i in range(len(k))
@@ -635,7 +767,7 @@ data_xcorr_Cavg = [
 
 
 ###################################################################################
-# 3. CROSS CORRELATION: WITHOUT C, C_NOISY AND C_CTC
+# 4. CROSS CORRELATION: WITHOUT C, C_NOISY AND C_CTC
 ###################################################################################
 
 plt.figure(figsize=(8, 4), dpi=300)
@@ -695,7 +827,84 @@ plt.close()
 
 
 ###################################################################################
-# 4. CROSS CORRELATION: INCLUDING C_AVG
+# 5. CROSS CORRELATION: NO C, C_NOISY, C_CTC AND IDEAL C
+###################################################################################
+
+plt.figure(figsize=(9, 5), dpi=300)
+
+bp1 = add_boxplot(
+    data_xcorr_noC,
+    positions + offsets_4[0],
+    "#B22222"
+)
+
+bp2 = add_boxplot(
+    data_xcorr_Cnoi,
+    positions + offsets_4[1],
+    "#6BAED6"
+)
+
+bp3 = add_boxplot(
+    data_xcorr_Cctc,
+    positions + offsets_4[2],
+    "#1F4E79"
+)
+
+bp4 = add_boxplot(
+    data_xcorr_Cid,
+    positions + offsets_4[3],
+    '#D4A017'
+)
+
+format_boxplot("Cross Correlation")
+
+plt.legend(
+    [
+        bp1["boxes"][0],
+        bp2["boxes"][0],
+        bp3["boxes"][0],
+        bp4["boxes"][0]
+    ],
+    [
+        "Without C",
+        r"With $C_{noisy}$",
+        r"With $C_{ctc}$",
+        r"With $C_{ideal}$"
+    ],
+    loc="lower center",
+    bbox_to_anchor=(0.5, 1.02),
+    ncol=4,
+    frameon=False,
+    handlelength=0.7,
+    handleheight=0.6,
+    handletextpad=0.35,
+    columnspacing=0.9
+)
+
+plt.subplots_adjust(top=0.80)
+
+plt.savefig(
+    f"plots/newFFTxcorr_CTC_vs_ideal_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    f"plots/newFFTxcorr_CTC_vs_ideal_boxplot_trials{trials}_N{N}_m{m}"
+    f"_noisestep{args.noise_steps}_maxnoise{args.noise_max}"
+    f"_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_{c}.pdf",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+plt.close()
+
+
+###################################################################################
+# 6. CROSS CORRELATION: INCLUDING C_AVG
 ###################################################################################
 
 # box_width=0.1
@@ -772,6 +981,9 @@ plt.savefig(
 
 plt.show()
 plt.close()
+
+
+
 
 
 
