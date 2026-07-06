@@ -595,7 +595,7 @@ bp3 = add_boxplot(
 bp4 = add_boxplot(
     data_ph_Cid,
     positions + offsets_4[3],
-    "#6A51A3"
+    '#D4A017'
 )
 
 format_boxplot("Prediction Horizon")

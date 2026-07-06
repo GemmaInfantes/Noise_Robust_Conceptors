@@ -12,6 +12,7 @@ from utils.rnn_utils import ridge
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import std_noise_func
 from utils.rnn_utils import denoising_CTC_m
+from utils.rnn_utils import compute_conceptor_avg
 from utils.utils import NRMSE
 
 
@@ -94,9 +95,11 @@ noise=np.arange(0,noise_max,noise_step)
 trials=trials_noise*trials_esn
 nrmse_d=np.empty((len(noise),trials),dtype=float)
 nrmse_d_C_ctc=np.empty((len(noise),trials),dtype=float)
+nrmse_d_C_avg=np.empty((len(noise),trials),dtype=float)
 
 mnrmse_noi=np.empty((len(noise),len(b)),dtype=float)
 mnrmse_noi_C_ctc=np.empty((len(noise),len(b)),dtype=float)
+mnrmse_noi_C_avg=np.empty((len(noise),len(b)),dtype=float)
 
 
 #starting the loop
@@ -177,6 +180,22 @@ for i in range(len(b)): #scan in increasing b deviation
                 #showing training X
                 #training Wout with Xi 
                 params_trained_noi_CTC, mse = ridge(reg, X_effective, yt_train_effective,step,params) #this gives us the results for the trainning dataset
+
+
+                ######################################################################################
+
+                #Running in open loop without drift with noise: TRAINING C_avg
+
+                #########################################################################################
+
+                C_avg=compute_conceptor_avg(params, ut_train1, std_noise, a_new)
+
+                X_noi_C_avg=forward_rnn(params, ut_train1, seed_noise[j],None,False,C_avg,std_noise)
+
+                X_effective = X_noi_C_avg[washout:]
+                yt_train_effective = yt_train1[washout:]
+                params_trained_noi_C_avg, mse = ridge(reg, X_effective, yt_train_effective,step,params)
+
                     
                 
                 
@@ -203,6 +222,16 @@ for i in range(len(b)): #scan in increasing b deviation
                         
                 
                 X_d_C_ctc=forward_rnn_drift(params, ut_train1, seed_noise[j],None,False,C_ctc,std_drift,std_noise)
+
+
+                ######################################################################################
+
+                #Running in open loop with drift with C_avg conceptor
+
+                #########################################################################################
+
+                X_d_C_avg=forward_rnn_drift(params, ut_train1, seed_noise[j],None,False,C_avg,std_drift,std_noise)
+
                   
                 
                
@@ -213,7 +242,8 @@ for i in range(len(b)): #scan in increasing b deviation
                 #open loop
                 Y_target=yt_train1 #real data
                 Y_d = X_d[steps_in:steps_in+steps] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #autonomous with noise 
-                Y_d_C_ctc = X_d_C_ctc[steps_in:steps_in+steps] @ params_trained_noi_CTC['wout'].T + params_trained_noi_CTC['bias_out'] #autonomous with noise with ctc C
+                Y_d_C_ctc = X_d_C_ctc[steps_in:steps_in+steps] @ params_trained_noi_CTC['wout'].T + params_trained_noi_CTC['bias_out'] #open loop with noise and drift with CTC
+                Y_d_C_avg = X_d_C_avg[steps_in:steps_in+steps] @ params_trained_noi_C_avg['wout'].T + params_trained_noi_C_avg['bias_out'] #open loop with noise and drift with C_avg
                
                 
                 
@@ -222,6 +252,7 @@ for i in range(len(b)): #scan in increasing b deviation
                 y = np.asarray(Y_target[steps_in:steps_in+steps]).ravel()          
                 y_d = np.asarray(Y_d).ravel()   
                 y_d_C_ctc = np.asarray(Y_d_C_ctc).ravel()
+                y_d_C_avg = np.asarray(Y_d_C_avg).ravel()
                
                 trial_index = idx * trials_noise + j #to store the results correctly
                 ###########################################################################################
@@ -231,12 +262,14 @@ for i in range(len(b)): #scan in increasing b deviation
                ############################################################################################ 
                 # NRMSE
                 nrmse_d[k,trial_index]        = NRMSE(y, y_d)
-                nrmse_d_C_ctc[k,trial_index]  = NRMSE(y, y_d_C_ctc)
+                nrmse_d_C_ctc[k,trial_index] = NRMSE(y, y_d_C_ctc)
+                nrmse_d_C_avg[k,trial_index] = NRMSE(y, y_d_C_avg)
 
     
     # ------------------ Compute mean and std ------------------
     mnrmse_noi[:,i]       = np.mean(nrmse_d, axis=1)
-    mnrmse_noi_C_ctc[:,i]  = np.mean(nrmse_d_C_ctc, axis=1)
+    mnrmse_noi_C_ctc[:,i] = np.mean(nrmse_d_C_ctc, axis=1)
+    mnrmse_noi_C_avg[:,i] = np.mean(nrmse_d_C_avg, axis=1)
    
     
 
@@ -284,7 +317,7 @@ cbar.ax.tick_params(labelsize=16)
 ax.invert_yaxis()
 plt.tight_layout()
 plt.savefig(f"plots/NRMSE_NoC_heatmap_N{N}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.png", dpi=300, bbox_inches='tight')
-# plt.savefig(f"plots/NRMSE_NoC_heatmap_N{N}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.pdf", dpi=300, bbox_inches='tight')
+plt.savefig(f"plots/NRMSE_NoC_heatmap_N{N}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.pdf", dpi=300, bbox_inches='tight')
 plt.show()
 
 
@@ -319,15 +352,37 @@ cbar.set_label("NRMSE", fontsize=20, labelpad=15)
 ax.invert_yaxis()
 plt.tight_layout()
 plt.savefig(f"plots/NRMSE_CTC_heatmap_N{N}_m{m}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.png", dpi=300, bbox_inches='tight')
-# plt.savefig(f"plots/NRMSE_CTC_heatmap_N{N}_m{m}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.pdf", dpi=300, bbox_inches='tight')
+plt.savefig(f"plots/NRMSE_CTC_heatmap_N{N}_m{m}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.pdf", dpi=300, bbox_inches='tight')
 plt.show()
 
+#with C_avg
+plt.figure(figsize=(8,6))
 
+ax = sns.heatmap(
+    mnrmse_noi_C_avg,
+    annot=True,
+    fmt=".2f",
+    cmap='magma_r',
+    vmin=inff,
+    vmax=supf,
+    yticklabels=yticks_labels,
+    xticklabels=xticks_labels,
+    annot_kws={"size": 13},
+    cbar_kws={"label": "NRMSE"}
+)
 
+ax.set_title(r"ESN with $C_{avg}$", fontsize=20, pad=15)
+ax.set_xlabel("% Drift", fontsize=20)
+ax.set_ylabel("% Noise", fontsize=20, labelpad=15)
 
+ax.set_xticklabels(xticks_labels, fontsize=16)
+ax.tick_params(axis='y', labelsize=16)
 
-
-
-
-
-
+cbar = ax.collections[0].colorbar
+cbar.ax.tick_params(labelsize=16)
+cbar.set_label("NRMSE", fontsize=20, labelpad=15)
+ax.invert_yaxis()
+plt.tight_layout()
+plt.savefig(f"plots/NRMSE_Cavg_heatmap_N{N}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.png", dpi=300, bbox_inches='tight')
+plt.savefig(f"plots/NRMSE_Cavg_heatmap_N{N}_trials{trials}_noisestep{args.noise_step}_maxnoise{args.noise_max}_bstep{args.b_steps}_maxb{args.b_max}_a{a}_steps{steps}_anew{a_new}_traintime{time_len}_inf{inff}_sup{supf}.pdf", dpi=300, bbox_inches='tight')
+plt.show()

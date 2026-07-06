@@ -102,7 +102,7 @@ trials=trials_noise*trials_esn
 nrmse_noi=np.empty((len(p1),trials),dtype=float)
 nrmse_C_noi=np.empty((len(p1),trials),dtype=float)
 nrmse_noi_C_ctc=np.empty((len(p1),trials),dtype=float)
-nrmse_id=np.empty((len(p1),trials),dtype=float)
+nrmse_C_id=np.empty((len(p1),trials),dtype=float)
 nrmse_noi_C_ctc_m=np.empty((len(p1),trials),dtype=float)
 nrmse_noi_C_avg=np.empty((len(p1),trials),dtype=float)
 
@@ -146,6 +146,8 @@ for idx, p in enumerate(p1):
 
        #obtain matrix X1 (time, N) of internal states for all time points
         X_id=forward_rnn(params, ut_train1, 42,x_init=None,autonomous=False,conceptor=None)
+        # Ideal conceptor computed from noise-free reservoir states
+        C_id=compute_conceptor(X_id, a)
     
        #computing the standard deviation for the noise
         std_noise=std_noise_func(X_id,args.noise)
@@ -194,6 +196,37 @@ for idx, p in enumerate(p1):
             #training Wout with Xi 
             params_trained_C, mse = ridge(reg, X_effective, yt_train_effective,p,params) #this gives us the results for the trainning dataset
             
+
+            ######################################################################################
+
+            #Running in open loop with noise with ideal conceptor
+
+            #########################################################################################
+
+            # C_id is computed from X_id without noise, but it is applied
+            # to the reservoir affected by the current noise realization.
+            X_noi_C_id=forward_rnn(
+                params,
+                ut_train1,
+                seed_noise[j],
+                None,
+                False,
+                C_id,
+                std_noise,
+                corr=corr
+            )
+
+            X_effective = X_noi_C_id[washout:]
+            yt_train_effective = yt_train1[washout:]
+
+            params_trained_C_id, mse = ridge(
+                reg,
+                X_effective,
+                yt_train_effective,
+                p,
+                params
+            )
+            
            
             ######################################################################################
                 
@@ -238,6 +271,7 @@ for idx, p in enumerate(p1):
             Y_target=yt_train1 #real data
             Y_noi = X_noi[washout:] @ params_trained_noi['wout'].T + params_trained_noi['bias_out'] #open loop with noise 
             Y_noi_C_noi = X_noi_C_noi[washout:] @ params_trained_C['wout'].T + params_trained_C['bias_out'] #open loop with noise with noisy C
+            Y_noi_C_id = X_noi_C_id[washout:] @ params_trained_C_id['wout'].T + params_trained_C_id['bias_out'] #open loop with noise with ideal C
             Y_noi_C_ctc_m = X_noi_C_ctc_m[washout:] @ params_trained_CTC_m['wout'].T + params_trained_CTC_m['bias_out'] #open loop with noise with ctc m C
             Y_noi_C_avg = X_noi_C_avg[washout:] @ params_trained_C_avg['wout'].T + params_trained_C_avg['bias_out'] #open loop with noise with avg C
             
@@ -246,6 +280,7 @@ for idx, p in enumerate(p1):
                   
             y_noi = np.asarray(Y_noi).ravel()   
             y_noi_C_noi = np.asarray(Y_noi_C_noi).ravel()
+            y_noi_C_id = np.asarray(Y_noi_C_id).ravel()
             y_noi_C_ctc_m = np.asarray(Y_noi_C_ctc_m).ravel()
             y_noi_C_avg = np.asarray(Y_noi_C_avg).ravel()
             
@@ -257,6 +292,7 @@ for idx, p in enumerate(p1):
             trial_index = i * trials_noise + j #to store the results correctly
             nrmse_noi[idx,trial_index]        = NRMSE(y, y_noi)
             nrmse_C_noi[idx,trial_index]  = NRMSE(y, y_noi_C_noi)
+            nrmse_C_id[idx,trial_index] = NRMSE(y, y_noi_C_id)
             nrmse_noi_C_ctc_m[idx,trial_index]  = NRMSE(y, y_noi_C_ctc_m)
             nrmse_noi_C_avg[idx,trial_index]  = NRMSE(y, y_noi_C_avg)
 
@@ -306,6 +342,9 @@ std_noi = np.std(nrmse_noi, axis=1)
 
 mean_C_noi = np.mean(nrmse_C_noi, axis=1)
 std_C_noi = np.std(nrmse_C_noi, axis=1)
+
+mean_C_id = np.mean(nrmse_C_id, axis=1)
+std_C_id = np.std(nrmse_C_id, axis=1)
 
 mean_C_ctc_m = np.mean(nrmse_noi_C_ctc_m, axis=1)
 std_C_ctc_m = np.std(nrmse_noi_C_ctc_m, axis=1)
@@ -360,6 +399,20 @@ plt.fill_between(
     color='#1F4E79', alpha=0.25
 )
 
+# With C_ideal
+plt.plot(
+    p1, mean_C_id,
+    color='#D4A017', alpha=0.95,
+    marker='p',
+    label=r"With $C_{ideal}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_id - std_C_id,
+    mean_C_id + std_C_id,
+    color='#D4A017', alpha=0.22
+)
+
 # Labels and style
 plt.xlabel(r"$p$ (prediction steps)", size=20)
 plt.ylabel("NRMSE", size=20)
@@ -369,7 +422,7 @@ plt.legend()
 
 # Save figure
 plt.savefig(
-    f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
+    f"plots/NRMSE_CTCm_vs_ideal_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
     dpi=300, bbox_inches='tight'
 )
 
@@ -439,6 +492,8 @@ plt.fill_between(
     color='#009E9A', alpha=0.25
 )
 
+
+
 # Labels and style
 plt.xlabel(r"$p$ (prediction steps)", size=20)
 plt.ylabel("NRMSE", size=20)
@@ -448,7 +503,7 @@ plt.legend()
 
 # Save figure
 plt.savefig(
-    f"plots/NRMSE_Cavg_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
+    f"plots/NRMSE_Cavg_and_ideal_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
     dpi=300, bbox_inches='tight'
 )
 
