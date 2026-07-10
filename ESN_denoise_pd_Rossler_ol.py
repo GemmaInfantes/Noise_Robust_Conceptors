@@ -514,6 +514,76 @@ plt.savefig(
 
 plt.show()
 
+# ----------------------------- Plot NRMSE with CTC  --------------------------------------
+plt.figure(figsize=(8,4), dpi=300)
+ax = plt.gca()
+ax.set_axisbelow(True) 
+# Without C
+plt.plot(
+    p1, mean_noi,
+    color='#B22222', alpha=0.9,
+    marker='s', label="Without C"
+)
+plt.fill_between(
+    p1,
+    mean_noi - std_noi,
+    mean_noi + std_noi,
+    color='#B22222', alpha=0.25
+)
+
+# With C_noisy
+plt.plot(
+    p1, mean_C_noi,
+    color='#6BAED6', alpha=0.9,
+    marker='^', 
+    label=r"With $C_{noisy}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_noi - std_C_noi,
+    mean_C_noi + std_C_noi,
+    color='#6BAED6', alpha=0.25
+)
+
+# With C_ctc
+plt.plot(
+    p1, mean_C_ctc_m,
+    color='#1F4E79', alpha=0.9,
+    marker='o', 
+    label=r"With $C_{ctc}$"
+)
+plt.fill_between(
+    p1,
+    mean_C_ctc_m - std_C_ctc_m,
+    mean_C_ctc_m + std_C_ctc_m,
+    color='#1F4E79', alpha=0.25
+)
+
+
+
+
+
+# Labels and style
+plt.xlabel(r"$p$ (prediction steps)", size=20)
+plt.ylabel("NRMSE", size=20)
+
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend()
+
+# Save figure
+plt.savefig(
+    f"plots/NRMSE_CTCM_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.png",
+    dpi=300, bbox_inches='tight'
+)
+
+plt.savefig(
+    f"plots/NRMSE_CTCm_vs_p_N{N}_m{m}_trials{trials}_noise{args.noise}_steps{steps}_a{a}_aNew{a_new}_pmax{args.p}_{c}.pdf",
+    dpi=300, bbox_inches='tight'
+)
+
+plt.show()
+
+
 
 
 

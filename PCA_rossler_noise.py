@@ -30,7 +30,7 @@ spectral_radius=1.6 #spectral radius of W
 scaling=0.9 #0.9 #input scaling
 bias_scaling=0.4 # tanh bias
 alpha=0.75 #Leakage 
-a=10 #Aperture. 
+a=5 #Aperture. 
 N=200 #Network size 
 # nu=2.5e-5 #Learning Rate 
 # beta=0.9 #Control gain 
@@ -214,7 +214,13 @@ colors = {
     'C_ctc': '#1F4E79',        # blue
     'C_avg': '#009E9A',        # blue
 }
-
+# colors = {
+#     'ideal': 'gray',        # green
+#     'without_C': 'gray',    # red
+#     'C_noisy': 'gray',      # blue
+#     'C_ctc': 'gray',        # blue
+#     'C_avg': 'gray',        # blue
+# }
 
 
 
@@ -223,6 +229,12 @@ colors = {
 # PCA vs Noise (PC1 vs PC2)
 
 ####################################
+
+# Noise-free PCA trajectory used only as a visual background reference.
+# It is deliberately excluded from all legends.
+clean_reference_color = "gray"
+clean_reference_alpha = 0.5
+clean_reference_size = 20
 
 n_noise = len(noise_std)
 
@@ -239,6 +251,19 @@ fig.patch.set_alpha(1)
 # Plot each PCA
 for i, noise in enumerate(noise_std):
 
+    # Noise-free trajectory behind each noisy PCA.
+    # It has no label and therefore does not appear in the legend.
+    for r in range(3):
+        axs[r, i].scatter(
+            PCA1_id[steps_in:steps],
+            PCA2_id[steps_in:steps],
+            s=clean_reference_size,
+            color=clean_reference_color,
+            alpha=clean_reference_alpha,
+            edgecolors="none",
+            zorder=1,
+        )
+
     # Row 0: Without C
     axs[0, i].scatter(
         PCA1_noi[steps_in:steps, i],
@@ -247,6 +272,7 @@ for i, noise in enumerate(noise_std):
         # color=colors['without_C'],
         color=colors['without_C'],
         alpha=1,
+        zorder=2,
         label="Without C" if i == 0 else ""
     )
 
@@ -257,6 +283,7 @@ for i, noise in enumerate(noise_std):
         s=20,
         color=colors['C_noisy'],
         alpha=1,
+        zorder=2,
         label=r"With $C_{noisy}$" if i == 0 else ""
     )
 
@@ -267,6 +294,7 @@ for i, noise in enumerate(noise_std):
         s=20,
         color=colors['C_ctc'],
         alpha=1,
+        zorder=2,
         label=r"With $C_{ctc}$" if i == 0 else ""
     )
     
@@ -282,10 +310,10 @@ for i, noise in enumerate(noise_std):
             spine.set_visible(False)
 
 # Unified axis limits
-pc1_min = min(PCA1_noi.min(), PCA1_C_noi.min(), PCA1_C_ctc.min())
-pc1_max = max(PCA1_noi.max(), PCA1_C_noi.max(), PCA1_C_ctc.max())
-pc2_min = min(PCA2_noi.min(), PCA2_C_noi.min(), PCA2_C_ctc.min())
-pc2_max = max(PCA2_noi.max(), PCA2_C_noi.max(), PCA2_C_ctc.max())
+pc1_min = min(PCA1_id.min(), PCA1_noi.min(), PCA1_C_noi.min(), PCA1_C_ctc.min())
+pc1_max = max(PCA1_id.max(), PCA1_noi.max(), PCA1_C_noi.max(), PCA1_C_ctc.max())
+pc2_min = min(PCA2_id.min(), PCA2_noi.min(), PCA2_C_noi.min(), PCA2_C_ctc.min())
+pc2_max = max(PCA2_id.max(), PCA2_noi.max(), PCA2_C_noi.max(), PCA2_C_ctc.max())
 
 for ax in axs.flat:
     ax.set_xlim(pc1_min - 0.5, pc1_max + 0.5)
@@ -315,7 +343,7 @@ plt.tight_layout(pad=0.1, rect=[0, 0.05, 1, 0.95])
 #     bbox_inches="tight"
 # )
 plt.savefig(
-    "plots/PCA_vs_noise_{c}.png",
+    f"plots/PCA_vs_noise_{c}.png",
     dpi=300,
     bbox_inches="tight"
 )
@@ -323,7 +351,7 @@ plt.show()
 
 
 
-
+point_alpha=1
 
 ##################################
 # PCA vs Noise (PC1 vs PC2) C_avg
@@ -340,12 +368,25 @@ fig, axs = plt.subplots(
     squeeze=False
 )
 
-# White background
+# White, opaque background
 fig.patch.set_facecolor("white")
 fig.patch.set_alpha(1)
 
 # Plot each PCA
 for i, noise in enumerate(noise_std):
+
+    # Noise-free trajectory behind each noisy PCA.
+    # It has no label and therefore does not appear in the legend.
+    for r in range(4):
+        axs[r, i].scatter(
+            PCA1_id[steps_in:steps],
+            PCA2_id[steps_in:steps],
+            s=clean_reference_size,
+            color=clean_reference_color,
+            alpha=clean_reference_alpha,
+            edgecolors="none",
+            zorder=1,
+        )
 
     # Row 0: Without C
     axs[0, i].scatter(
@@ -353,7 +394,8 @@ for i, noise in enumerate(noise_std):
         PCA2_noi[steps_in:steps, i],
         s=20,
         color=colors["without_C"],
-        alpha=1
+        alpha=point_alpha,
+        zorder=2
     )
 
     # Row 1: With noisy C
@@ -362,7 +404,8 @@ for i, noise in enumerate(noise_std):
         PCA2_C_noi[steps_in:steps, i],
         s=20,
         color=colors["C_noisy"],
-        alpha=1
+        alpha=point_alpha,
+        zorder=2
     )
 
     # Row 2: With CTC C
@@ -371,7 +414,8 @@ for i, noise in enumerate(noise_std):
         PCA2_C_ctc[steps_in:steps, i],
         s=20,
         color=colors["C_ctc"],
-        alpha=1
+        alpha=point_alpha,
+        zorder=2
     )
 
     # Row 3: With average C
@@ -380,7 +424,8 @@ for i, noise in enumerate(noise_std):
         PCA2_C_avg[steps_in:steps, i],
         s=20,
         color=colors["C_avg"],
-        alpha=1
+        alpha=point_alpha,
+        zorder=2
     )
 
     # Common format for all rows
@@ -398,6 +443,7 @@ for i, noise in enumerate(noise_std):
 
 # Unified axis limits
 pc1_min = min(
+    PCA1_id.min(),
     PCA1_noi.min(),
     PCA1_C_noi.min(),
     PCA1_C_ctc.min(),
@@ -405,6 +451,7 @@ pc1_min = min(
 )
 
 pc1_max = max(
+    PCA1_id.max(),
     PCA1_noi.max(),
     PCA1_C_noi.max(),
     PCA1_C_ctc.max(),
@@ -412,6 +459,7 @@ pc1_max = max(
 )
 
 pc2_min = min(
+    PCA2_id.min(),
     PCA2_noi.min(),
     PCA2_C_noi.min(),
     PCA2_C_ctc.min(),
@@ -419,6 +467,7 @@ pc2_min = min(
 )
 
 pc2_max = max(
+    PCA2_id.max(),
     PCA2_noi.max(),
     PCA2_C_noi.max(),
     PCA2_C_ctc.max(),
@@ -523,9 +572,10 @@ plt.tight_layout(
 
 
 plt.savefig(
-    "plots/PCA_vs_noise_Cavg_{c}.pdf",
+    f"plots/PCA_vs_noise_Cavg_{c}_new.png",
     dpi=300,
     bbox_inches="tight",
+    transparent=False,
     facecolor="white"
 )
 

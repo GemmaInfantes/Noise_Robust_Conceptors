@@ -587,15 +587,15 @@ bp2 = add_boxplot(
 )
 
 bp3 = add_boxplot(
-    data_ph_Cctc,
+    data_ph_Cid,
     positions + offsets_4[2],
-    "#1F4E79"
+    '#D4A017'
 )
 
 bp4 = add_boxplot(
-    data_ph_Cid,
+    data_ph_Cctc,
     positions + offsets_4[3],
-    '#D4A017'
+    "#1F4E79"
 )
 
 format_boxplot("Prediction Horizon")
@@ -610,8 +610,8 @@ plt.legend(
     [
         "Without C",
         r"With $C_{noisy}$",
-        r"With $C_{ctc}$",
-        r"With $C_{ideal}$"
+        r"With $C_{ideal}$",
+        r"With $C_{ctc}$"
     ],
     loc="lower center",
     bbox_to_anchor=(0.5, 1.02),
@@ -674,15 +674,15 @@ bp2 = add_boxplot(
 )
 
 bp3 = add_boxplot(
-    data_ph_Cctc,
+    data_ph_Cavg,
     positions + offsets_4[2],
-    "#1F4E79"
+    "#009E9A"
 )
 
 bp4 = add_boxplot(
-    data_ph_Cavg,
+    data_ph_Cctc,
     positions + offsets_4[3],
-    "#009E9A"
+    "#1F4E79"
 )
 
 format_boxplot("Prediction Horizon")
@@ -697,8 +697,8 @@ plt.legend(
     [
         "Without C",
         r"With $C_{noisy}$",
-        r"With $C_{ctc}$",
-        r"With $C_{avg}$"
+        r"With $C_{avg}$",
+        r"With $C_{ctc}$"
     ],
     loc="lower center",
     bbox_to_anchor=(0.5, 1.02),
@@ -845,15 +845,15 @@ bp2 = add_boxplot(
 )
 
 bp3 = add_boxplot(
-    data_xcorr_Cctc,
+    data_xcorr_Cid,
     positions + offsets_4[2],
-    "#1F4E79"
+    '#D4A017'
 )
 
 bp4 = add_boxplot(
-    data_xcorr_Cid,
+    data_xcorr_Cctc,
     positions + offsets_4[3],
-    '#D4A017'
+    "#1F4E79"
 )
 
 format_boxplot("Cross Correlation")
@@ -868,8 +868,8 @@ plt.legend(
     [
         "Without C",
         r"With $C_{noisy}$",
-        r"With $C_{ctc}$",
-        r"With $C_{ideal}$"
+        r"With $C_{ideal}$",
+        r"With $C_{ctc}$"
     ],
     loc="lower center",
     bbox_to_anchor=(0.5, 1.02),
@@ -924,15 +924,15 @@ bp2 = add_boxplot(
 )
 
 bp3 = add_boxplot(
-    data_xcorr_Cctc,
+    data_xcorr_Cavg,
     positions + offsets_4[2],
-    "#1F4E79"
+    "#009E9A"
 )
 
 bp4 = add_boxplot(
-    data_xcorr_Cavg,
+    data_xcorr_Cctc,
     positions + offsets_4[3],
-    "#009E9A"
+    "#1F4E79"
 )
 
 format_boxplot("Cross Correlation")
@@ -947,8 +947,8 @@ plt.legend(
     [
         "Without C",
         r"With $C_{noisy}$",
-        r"With $C_{ctc}$",
-        r"With $C_{avg}$"
+        r"With $C_{avg}$",
+        r"With $C_{ctc}$"
     ],
     loc="lower center",
     bbox_to_anchor=(0.5, 1.02),

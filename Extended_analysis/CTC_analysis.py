@@ -1,10 +1,34 @@
 # Imports
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+
+###############################################################################
+# Project paths
+###############################################################################
+
+# Folder containing this script: Extended_analysis
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+# Main project folder: Noise_Robust_Conceptors
+PROJECT_DIR = SCRIPT_DIR.parent
+
+# Input-data folder: Noise_Robust_Conceptors/Rossler_data
+DATA_DIR = PROJECT_DIR / "Rossler_data"
+
+# Output folder: Noise_Robust_Conceptors/Extended_analysis/plots_analysis
+PLOTS_DIR = SCRIPT_DIR / "plots_analysis"
+PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Allow imports from the sibling folder utils
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 
 from utils.rnn_utils import compute_conceptor
 from utils.rnn_utils import denoising_CTC_m
@@ -79,7 +103,7 @@ if p < 1:
 # Input signal: Rössler x
 ###############################################################################
 
-data1 = pd.read_csv("Rossler_data/xRossler.txt", sep="\t", header=None, index_col=None)
+data1 = pd.read_csv(DATA_DIR / "xRossler.txt", sep="\t", header=None, index_col=None)
 data1 = data1.values[:time_len]
 data1 = data1.reshape(-1, 1)
 
@@ -227,8 +251,6 @@ result_100 = results_cache[100.0]
 
 plt.rcParams.update({"figure.figsize": (10, 6), "axes.labelsize": 20, "axes.titlesize": 20, "xtick.labelsize": 18, "ytick.labelsize": 18, "legend.fontsize": 16, "lines.linewidth": 2, "lines.markersize": 9, "grid.alpha": 0.6, "grid.linestyle": "--", "axes.linewidth": 1.8, "axes.edgecolor": "black"})
 
-Path("plots").mkdir(parents=True, exist_ok=True)
-
 c = "correlated" if corr else "uncorrelated"
 noise_tag = f"{args.noise:g}"
 a_tag = f"{a:g}"
@@ -257,9 +279,9 @@ plt.grid(True, linestyle="--", alpha=0.6)
 plt.legend()
 plt.tight_layout()
 
-individual_ssi_name = f"plots/PCAxcorr_Cnoisy_m1_CTC_mscan_noise{noise_tag}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
-plt.savefig(f"{individual_ssi_name}.png", dpi=300, bbox_inches="tight")
-plt.savefig(f"{individual_ssi_name}.pdf", dpi=300, bbox_inches="tight")
+individual_ssi_name = f"PCAxcorr_Cnoisy_m1_CTC_mscan_noise{noise_tag}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
+plt.savefig(PLOTS_DIR / f"{individual_ssi_name}.png", dpi=300, bbox_inches="tight")
+plt.savefig(PLOTS_DIR / f"{individual_ssi_name}.pdf", dpi=300, bbox_inches="tight")
 
 plt.show()
 plt.close()
@@ -281,9 +303,9 @@ plt.grid(True, linestyle="--", alpha=0.6)
 plt.legend()
 plt.tight_layout()
 
-individual_nrmse_name = f"plots/NRMSE_Cnoisy_m1_CTC_mscan_noise{noise_tag}_p{p}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
-plt.savefig(f"{individual_nrmse_name}.png", dpi=300, bbox_inches="tight")
-plt.savefig(f"{individual_nrmse_name}.pdf", dpi=300, bbox_inches="tight")
+individual_nrmse_name = f"NRMSE_Cnoisy_m1_CTC_mscan_noise{noise_tag}_p{p}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
+plt.savefig(PLOTS_DIR / f"{individual_nrmse_name}.png", dpi=300, bbox_inches="tight")
+plt.savefig(PLOTS_DIR / f"{individual_nrmse_name}.pdf", dpi=300, bbox_inches="tight")
 
 plt.show()
 plt.close()
@@ -309,9 +331,9 @@ plt.grid(True, linestyle="--", alpha=0.6)
 plt.legend(ncol=2, fontsize=14, frameon=False, columnspacing=1.0, handletextpad=0.5)
 plt.tight_layout()
 
-comparison_ssi_name = f"plots/PCAxcorr_Cnoisy_m1_CTC_mscan_noise50-100_comparison_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
-plt.savefig(f"{comparison_ssi_name}.png", dpi=300, bbox_inches="tight")
-plt.savefig(f"{comparison_ssi_name}.pdf", dpi=300, bbox_inches="tight")
+comparison_ssi_name = f"PCAxcorr_Cnoisy_m1_CTC_mscan_noise50-100_comparison_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
+plt.savefig(PLOTS_DIR / f"{comparison_ssi_name}.png", dpi=300, bbox_inches="tight")
+plt.savefig(PLOTS_DIR / f"{comparison_ssi_name}.pdf", dpi=300, bbox_inches="tight")
 
 plt.show()
 plt.close()
@@ -336,9 +358,9 @@ plt.grid(True, linestyle="--", alpha=0.6)
 plt.legend(ncol=2, fontsize=14, frameon=False, columnspacing=1.0, handletextpad=0.5)
 plt.tight_layout()
 
-comparison_nrmse_name = f"plots/NRMSE_Cnoisy_m1_CTC_mscan_noise50-100_comparison_p{p}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
-plt.savefig(f"{comparison_nrmse_name}.png", dpi=300, bbox_inches="tight")
-plt.savefig(f"{comparison_nrmse_name}.pdf", dpi=300, bbox_inches="tight")
+comparison_nrmse_name = f"NRMSE_Cnoisy_m1_CTC_mscan_noise50-100_comparison_p{p}_N{N}_trials{trials}_steps{steps}_a{a_tag}_m{m_in}-{m_fin}_mstep{m_step}_traintime{time_len}_{c}"
+plt.savefig(PLOTS_DIR / f"{comparison_nrmse_name}.png", dpi=300, bbox_inches="tight")
+plt.savefig(PLOTS_DIR / f"{comparison_nrmse_name}.pdf", dpi=300, bbox_inches="tight")
 
 plt.show()
 plt.close()
