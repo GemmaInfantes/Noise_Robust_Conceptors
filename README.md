@@ -4,7 +4,7 @@ Conceptors are a powerful extension of reservoir computing that enable the selec
 
 ## Benchmark Task
 
-The benchmark task consists of one-step-ahead prediction and autonomous generation of the Rössler chaotic dynamics. The goal is to evaluate the proposed noise-robust conceptors against the no-conceptor case, standard conceptors, and an averaged-state conceptor ($C_{\text{avg}}$) under noisy conditions. The $C_{\text{avg}}$ approach computes the conceptor from a new state matrix obtained by averaging the reservoir states across repeated trials before calculating its correlation matrix.
+The benchmark task consists of one-step-ahead prediction and autonomous generation of the Rössler chaotic dynamics. The goal is to evaluate the proposed noise-robust conceptors against the no-conceptor case, standard conceptors, and an averaged-state conceptor ($C_{\text{avg}}$) under noisy conditions. 
 
 The benchmark also assesses the ability of the proposed method to improve the robustness of leaky ESNs under hardware-relevant perturbations, such as parameter drift during operation. Some experiments included in this repository additionally use an ideal conceptor computed from noise-free reservoir states as a reference. These comparisons are provided only to contextualize the performance of the different methods and are not part of the results presented in the paper.
 
