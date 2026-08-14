@@ -27,9 +27,9 @@ def rnn_params(
     - input_scaling (float): Scaling factor for the input weights.
     - spectral_radius (float): Desired spectral radius of the recurrent weight matrix.
     - a_dt (float): Time step size.
-    - bias_scaling (float, optional): Scaling factor for the bias terms. Defaults to 0.4.
+    - bias_scaling (float): Scaling factor for the bias terms.
+    - sparsity (float or None): Density of nonzero recurrent weights. Use None or 1 for a dense matrix.
     - seed (int, optional): Seed for the random number generator. Defaults to 1235.
-    - Sparsity (int or None): If sparsity is needed you can give a value, if not None
     
     Returns:
     - params (dict): A dictionary containing the initialized parameters.
@@ -37,17 +37,37 @@ def rnn_params(
 
     prng = np.random.default_rng(seed)
     def normal_data(n):
+        """
+        Generates normally distributed values using the local random generator.
+
+        Args:
+        - n (int or tuple): Number or shape of values to generate.
+
+        Returns:
+        - values (ndarray): Normally distributed random values.
+        """
         # return prng.normal(loc=0,scale=1.0,size=n)
         return prng.normal(size=n)
-    #crea la matriz W
+    # Create the W matrix
     def rnn_ini(shape, spectral_radius,sparsity): #matrix dimension and desired spectral radius
+        """
+        Creates a recurrent matrix with the requested density and spectral radius.
+
+        Args:
+        - shape (tuple): Number of rows and columns in the recurrent matrix.
+        - spectral_radius (float): Target spectral radius of the matrix.
+        - sparsity (float or None): Density of nonzero values; None or 1 creates a dense matrix.
+
+        Returns:
+        - w (ndarray): Initialized recurrent weight matrix.
+        """
         if sparsity is not None and sparsity!=1:
             w=random(shape[0], shape[1], density=sparsity, data_rvs=normal_data, format='coo',random_state=prng.integers(1e9)) #if we want to give sparsity to the matrix
             w=w.toarray()
         else:
             w = prng.normal(size=shape)
             # w = prng.normal(loc=0,scale=1.0,size=shape) #internal weights, generates a matrix with Gaussian distribution (values range from -1 to 1)
-        current_spectral_radius = max(abs(np.linalg.eig(w)[0])) # calcula el radio expectral de la matriz w aleatoria
+        current_spectral_radius = max(abs(np.linalg.eig(w)[0])) # Calculate the spectral radius of the random matrix w
         w *= spectral_radius / current_spectral_radius # adjusts W by scaling all its values so that its new spectral radius equals the specified spectral_radius
                                                         # this controls the recurrent dynamics (prevents exploding or vanishing activations in the RNN)
         return w
@@ -73,15 +93,15 @@ def forward_rnn(params, ut,seed=42,x_init=None, autonomous=False,conceptor=None,
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
     - ut (ndarray): input to the RNN.
-    - seed : for the noise generator
+    - seed (int): Seed for the noise generator.
     - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise. 
+    - autonomous (bool): Whether to use the trained output as input instead of ``ut``.
+    - conceptor (ndarray or None): Conceptor matrix, or None to use the identity matrix.
+    - std_Noise (float or ndarray or None): Noise standard deviation; None disables noise.
+    - corr (bool): Whether to use the same noise sample for all state dimensions.
 
     Returns:
-    - X (matriz): hidden satate for all the time series
+    - X (matrix): hidden state for the entire time series
     
     
     use params_trained for every case that you use this function after training the model
@@ -147,15 +167,15 @@ def forward_rnn_comb(params, ut,seed=42,steps_ol=30,x_init=None, conceptor=None,
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
     - ut (ndarray): input to the RNN.
-    - seed : for the noise generator
-    - steps_ol (int): number the steps for the open loop
+    - seed (int): Seed for the noise generator.
+    - steps_ol (int): Number of initial open-loop steps.
     - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - conceptor (array): The conceptor we want to use or None
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
-    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise. 
+    - conceptor (ndarray or None): Conceptor matrix, or None to use the identity matrix.
+    - std_Noise (float or ndarray or None): Noise standard deviation; None disables noise.
+    - corr (bool): Whether to use the same noise sample for all state dimensions.
     
     Returns:
-    - X (matriz): hidden satate for all the time series
+    - X (matrix): hidden state for the entire time series
     
     
     use params_trained for every case that you use this function after training the model
@@ -219,9 +239,10 @@ def compute_conceptor(X, aperture,denoise_svd=False):
     """
     Computes the conceptor matrix for a given input matrix X and an aperture value.
 
-    Arg:
+    Args:
     - X (numpy.ndarray): Input matrix of shape (n_samples, n_features). (t,N)
     - aperture (float): Aperture value used to compute the conceptor matrix.
+    - denoise_svd (bool): Whether to compute the conceptor through an SVD-based eigenspace representation.
    
     Returns:
     - C (ndarray) Conceptor matrix of shape (n_features, n_features). (N,N)
@@ -246,12 +267,12 @@ def compute_conceptor_avg(params,ut_train1,std_noise,aperture,corr=False):
     
     Denoising ("cleaning") the conceptor using avareging internal states trials
 
-    Arg:
+    Args:
     - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
+    - std_noise (float or ndarray or None): Noise standard deviation; None disables noise.
     - ut_train1 (ndarray): input to the RNN.
     - aperture (float): Aperture for the cleaned conceptor.
-    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
+    - corr (bool): Whether to use correlated noise across state dimensions.
     
    
     Returns:
@@ -281,7 +302,7 @@ def ridge(beta,X,Y_target,step,params):
     """
     Trainning the model and visualize the results for the input dataset
     
-    Arg:
+    Args:
     - beta:(float) ridge coefficient
     - X (array): hidden state matrix (T,N)
     - Y_target(array): target outpot values (T,1)
@@ -367,12 +388,12 @@ def denoising_CTC(params,ut_train1,std_noise,a_new,corr=False):
     
     Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
 
-    Arg:
+    Args:
     - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
+    - std_noise (float or ndarray or None): Noise standard deviation; None disables noise.
     - ut_train1 (ndarray): input to the RNN.
     - a_new (float): Aperture for the cleaned conceptor.
-    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
+    - corr (bool): Whether to use correlated noise across state dimensions.
     
    
     Returns:
@@ -413,13 +434,13 @@ def denoising_CTC_m(params,ut_train1,std_noise,a_new,m,corr=False):
     
     Denoising ("cleaning") the conceptor using the Cross-Trial correlation (Input Forcing). For this we will need to trials
 
-    Arg:
+    Args:
     - params (dict): dictionary containing the RNN parameters (weights and biases).
-    - std_Noise (float): None if we dont want to add noise or float if we want to ad a % of std_noise
+    - std_noise (float or ndarray or None): Noise standard deviation; None disables noise.
     - ut_train1 (ndarray): input to the RNN.
     - a_new (float): Aperture for the cleaned conceptor.
     - m (int): number of trials.
-    - Corr (boolean): False: for uncorrelated noise, True: for correlated noise.
+    - corr (bool): Whether to use correlated noise across state dimensions.
    
     Returns:
     - C_ctc (ndarray): cleaned conceptor.
@@ -482,14 +503,15 @@ def forward_rnn_drift(params, ut,seed=42,x_init=None, autonomous=False,conceptor
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
     - ut (ndarray): input to the RNN.
-    - seed : for the noise generator
+    - seed (int): Seed for the noise generator.
     - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - d (float): 0 if we dont want to add drift or float if we want to ad a % of std_drift
+    - autonomous (bool): Whether to use the trained output as input instead of ``ut``.
+    - conceptor (ndarray or None): Conceptor matrix, or None to use the identity matrix.
+    - std_drift (float or ndarray): Uniform bias offset applied from time step 100 onward.
+    - std_Noise (float or ndarray or None): Noise standard deviation; None disables noise.
 
     Returns:
-    - X (matriz): hidden satate for all the time series
+    - X (matrix): hidden state for the entire time series
     
     
     use params_trained for every case that you use this function after training the model
@@ -559,14 +581,15 @@ def forward_rnn_drift_new(params, ut,seed=42,x_init=None, autonomous=False,conce
     Args:   
     - params (dict): dictionary containing the RNN parameters (weights and biases).
     - ut (ndarray): input to the RNN.
-    - seed : for the noise generator
+    - seed (int): Seed for the noise and drift generators.
     - x_init (ndarray, optional): initial state of the RNN. Defaults to None.
-    - autonomous (boolean): True or False if we want to use this mode or not
-    - conceptor (array): The conceptor we want to use or None
-    - d (float): 0 if we dont want to add drift or float if we want to ad a % of std_drift
+    - autonomous (bool): Whether to use the trained output as input instead of ``ut``.
+    - conceptor (ndarray or None): Conceptor matrix, or None to use the identity matrix.
+    - std_drift (float): Standard deviation of the random bias drift applied from time step 100 onward.
+    - std_Noise (float or ndarray or None): Noise standard deviation; None disables noise.
 
     Returns:
-    - X (matriz): hidden satate for all the time series
+    - X (matrix): hidden state for the entire time series
     
     
     use params_trained for every case that you use this function after training the model

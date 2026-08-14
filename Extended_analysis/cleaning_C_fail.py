@@ -134,10 +134,14 @@ y_target = np.asarray(yt_train1[washout:eval_stop]).ravel()
 
 def threshold_conceptor_singular_values(C, threshold_fraction):
     """
-    Threshold the singular values of an already computed noisy conceptor.
+    Thresholds the singular values of an already computed noisy conceptor.
 
-    threshold_fraction = 0.5 means that singular values smaller than
-    50% of the largest singular value are set to zero.
+    Args:
+    - C (ndarray): Noisy conceptor matrix to threshold.
+    - threshold_fraction (float): Fraction of the largest singular value below which values are set to zero.
+
+    Returns:
+    - C_thresholded (ndarray): Conceptor reconstructed from the retained singular values.
     """
     U, singular_values, _ = np.linalg.svd(C, full_matrices=False, hermitian=True)
 
@@ -154,11 +158,16 @@ def threshold_conceptor_singular_values(C, threshold_fraction):
 
 def conceptor_from_thresholded_correlation(X, aperture, threshold_fraction):
     """
-    Threshold the eigenvalues of the state-correlation matrix and then compute
+    Thresholds the eigenvalues of the state-correlation matrix and then computes
     the conceptor with the standard matrix expression.
 
-    threshold_fraction = 0.5 means that eigenvalues smaller than
-    50% of the largest eigenvalue are set to zero.
+    Args:
+    - X (ndarray): Reservoir state matrix with time samples in rows.
+    - aperture (float): Conceptor aperture used in the regularized matrix expression.
+    - threshold_fraction (float): Fraction of the largest eigenvalue below which values are set to zero.
+
+    Returns:
+    - C_thresholded (ndarray): Conceptor computed from the thresholded correlation matrix.
     """
     # Original noisy state-correlation matrix.
     R = X.T @ X / X.shape[0]
@@ -194,17 +203,27 @@ def conceptor_from_thresholded_correlation(X, aperture, threshold_fraction):
 
 
 def evaluate_conceptor(params, conceptor, current_seed, std_noise, X_id):
-    """Apply a conceptor, train the readout, and return SSI and NRMSE."""
+    """
+    Applies a conceptor, trains the readout, and evaluates SSI and NRMSE.
+
+    Args:
+    - params (dict): RNN parameters used to generate and train the reservoir states.
+    - conceptor (ndarray): Conceptor matrix applied to the reservoir states.
+    - current_seed (int): Seed for the reservoir noise realization.
+    - std_noise (float or ndarray): Standard deviation of the added state noise.
+    - X_id (ndarray): Ideal reservoir states used as the SSI reference.
+
+    Returns:
+    - ssi (float): PCA-based state-space similarity to the ideal states.
+    - nrmse (float): Normalized prediction error of the trained readout.
+    """
     X_filtered = forward_rnn(params, ut_train1, current_seed, None, False, conceptor, std_noise, corr=corr)
 
     params_trained, _ = ridge(reg, X_filtered[washout:], yt_train_effective, step, params)
 
     ssi = xcorr_PCA(X_id, X_filtered, washout, effective_steps)
 
-    y_prediction = np.asarray(
-        X_filtered[washout:eval_stop] @ params_trained["wout"].T
-        + params_trained["bias_out"]
-    ).ravel()
+    y_prediction = np.asarray(X_filtered[washout:eval_stop] @ params_trained["wout"].T + params_trained["bias_out"]).ravel()
 
     nrmse = NRMSE(y_target, y_prediction)
 
@@ -215,12 +234,7 @@ def evaluate_conceptor(params, conceptor, current_seed, std_noise, X_id):
 # Threshold scan and storage
 ###############################################################################
 
-threshold_percentages = np.arange(
-    0.0,
-    args.threshold_max + 0.5 * args.threshold_step,
-    args.threshold_step,
-    dtype=float,
-)
+threshold_percentages = np.arange(0.0, args.threshold_max + 0.5 * args.threshold_step, args.threshold_step, dtype=float)
 
 threshold_fractions = threshold_percentages / 100.0
 
@@ -253,27 +267,10 @@ nrmse_ctc = np.empty(trials, dtype=float)
 ###############################################################################
 
 for esn_idx in range(trials_esn):
-    params = rnn_params(
-        N,
-        input_size,
-        output_size,
-        scaling,
-        spectral_radius,
-        alpha,
-        bias_scaling,
-        sparsity,
-        seed=seed_esn[esn_idx],
-    )
+    params = rnn_params(N, input_size, output_size, scaling, spectral_radius, alpha, bias_scaling, sparsity, seed=seed_esn[esn_idx])
 
     # Clean states define the noise amplitude and provide the SSI reference.
-    X_id = forward_rnn(
-        params,
-        ut_train1,
-        42,
-        x_init=None,
-        autonomous=False,
-        conceptor=None,
-    )
+    X_id = forward_rnn(params, ut_train1, 42, x_init=None, autonomous=False, conceptor=None)
 
     std_noise = std_noise_func(X_id, noise_level)
 
@@ -285,78 +282,38 @@ for esn_idx in range(trials_esn):
         trial_index = esn_idx * trials_noise + noise_idx
 
         # Noisy states used to construct C_noisy and R_noisy.
-        X_noisy = forward_rnn(
-            params,
-            ut_train1,
-            current_seed,
-            None,
-            False,
-            None,
-            std_noise,
-            corr=corr,
-        )
+        X_noisy = forward_rnn(params, ut_train1, current_seed, None, False, None, std_noise, corr=corr)
 
         C_noisy = compute_conceptor(X_noisy, a)
 
         # Evaluate the standard noisy conceptor once for this trial.
-        ssi_c_noisy[trial_index], nrmse_c_noisy[trial_index] = evaluate_conceptor(
-            params,
-            C_noisy,
-            current_seed,
-            std_noise,
-            X_id,
-        )
+        ssi_c_noisy[trial_index], nrmse_c_noisy[trial_index] = evaluate_conceptor(params, C_noisy, current_seed, std_noise, X_id)
 
         # Evaluate CTC once for this trial.
-        ssi_ctc[trial_index], nrmse_ctc[trial_index] = evaluate_conceptor(
-            params,
-            C_ctc,
-            current_seed,
-            std_noise,
-            X_id,
-        )
+        ssi_ctc[trial_index], nrmse_ctc[trial_index] = evaluate_conceptor(params, C_ctc, current_seed, std_noise, X_id)
 
         for threshold_idx, threshold_fraction in enumerate(threshold_fractions):
             ###################################################################
             # 1. Threshold singular values of C_noisy
             ###################################################################
 
-            C_singular_thresholded = threshold_conceptor_singular_values(
-                C_noisy,
-                threshold_fraction,
-            )
+            C_singular_thresholded = threshold_conceptor_singular_values(C_noisy, threshold_fraction)
 
             (
                 ssi_singular[threshold_idx, trial_index],
                 nrmse_singular[threshold_idx, trial_index],
-            ) = evaluate_conceptor(
-                params,
-                C_singular_thresholded,
-                current_seed,
-                std_noise,
-                X_id,
-            )
+            ) = evaluate_conceptor(params, C_singular_thresholded, current_seed, std_noise, X_id)
 
             ###################################################################
             # 2. Threshold eigenvalues of R_noisy before computing C
             ###################################################################
 
-            C_correlation_thresholded = conceptor_from_thresholded_correlation(
-                X_noisy,
-                a,
-                threshold_fraction,
-            )
+            C_correlation_thresholded = conceptor_from_thresholded_correlation(X_noisy, a, threshold_fraction)
 
             (
                 ssi_correlation[threshold_idx, trial_index],
                 nrmse_correlation[threshold_idx, trial_index],
-            ) = evaluate_conceptor(
-                params,
-                C_correlation_thresholded,
-                current_seed,
-                std_noise,
-                X_id,
-            )
+            ) = evaluate_conceptor(params, C_correlation_thresholded, current_seed, std_noise, X_id)
 
 
 ###############################################################################
@@ -364,6 +321,16 @@ for esn_idx in range(trials_esn):
 ###############################################################################
 
 def mean_and_std(values):
+    """
+    Computes row-wise means and standard deviations.
+
+    Args:
+    - values (ndarray): Values arranged with observations along axis 1.
+
+    Returns:
+    - means (ndarray): Mean of each row.
+    - standard_deviations (ndarray): Standard deviation of each row.
+    """
     return np.mean(values, axis=1), np.std(values, axis=1)
 
 
@@ -447,22 +414,13 @@ plt.rcParams.update({
 # For example, with thresholds from 0 to 100 in steps of 5,
 # the plotted points remain every 5%, but the labels are shown every 10%.
 max_x_ticks = 11
-tick_stride = max(
-    1,
-    int(np.ceil(len(threshold_percentages) / max_x_ticks)),
-)
+tick_stride = max(1, int(np.ceil(len(threshold_percentages) / max_x_ticks)))
 
 visible_threshold_ticks = threshold_percentages[::tick_stride]
 
 # Always include the final threshold value.
-if not np.isclose(
-    visible_threshold_ticks[-1],
-    threshold_percentages[-1],
-):
-    visible_threshold_ticks = np.append(
-        visible_threshold_ticks,
-        threshold_percentages[-1],
-    )
+if not np.isclose(visible_threshold_ticks[-1], threshold_percentages[-1]):
+    visible_threshold_ticks = np.append(visible_threshold_ticks, threshold_percentages[-1])
 
 
 ###############################################################################

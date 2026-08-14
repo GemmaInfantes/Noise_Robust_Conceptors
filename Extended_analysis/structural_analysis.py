@@ -126,7 +126,18 @@ noise_values = np.arange(0.0, args.noise_max, args.noise_step, dtype=float)
 
 
 def find_noise_index(target_noise):
-    """Return the index of an exact noise level included in the scan."""
+    """
+    Finds the index of a requested noise level in the configured scan.
+
+    Args:
+    - target_noise (float): Noise percentage to locate in ``noise_values``.
+
+    Returns:
+    - noise_index (int): Index of the matching noise level.
+
+    Raises:
+    - ValueError: If the requested noise level is absent from the scan.
+    """
     matching_indices = np.where(np.isclose(noise_values, target_noise))[0]
     if matching_indices.size == 0:
         raise ValueError(
@@ -183,23 +194,56 @@ singular_values_c_noisy_noise_2 = np.empty((trials, N), dtype=float)
 
 
 def mean_squared_magnitude(values):
-    """Return the mean squared absolute value of an array or scalar."""
+    """
+    Computes the mean squared absolute value of an array or scalar.
+
+    Args:
+    - values (array-like or scalar): Values whose squared magnitude is averaged.
+
+    Returns:
+    - mean_power (float): Mean of the squared absolute values.
+    """
     array = np.asarray(values)
     return float(np.mean(np.abs(array) ** 2))
 
 
 def extract_readout_power(trained_params):
-    """Extract mean |Wout|^2 and mean |b_out|^2."""
+    """
+    Extracts the mean squared magnitudes of the trained readout weights and bias.
+
+    Args:
+    - trained_params (dict): Trained RNN parameters containing ``wout`` and ``bias_out``.
+
+    Returns:
+    - wout_power (float): Mean squared magnitude of the readout weights.
+    - bias_out_power (float): Mean squared magnitude of the readout bias.
+    """
     return mean_squared_magnitude(trained_params["wout"]), mean_squared_magnitude(trained_params["bias_out"])
 
 
 def extract_wout_std(trained_params):
-    """Return the standard deviation of the Wout coefficients."""
+    """
+    Computes the standard deviation of the trained readout coefficients.
+
+    Args:
+    - trained_params (dict): Trained RNN parameters containing ``wout``.
+
+    Returns:
+    - wout_std (float): Standard deviation of all readout-weight coefficients.
+    """
     return float(np.std(np.asarray(trained_params["wout"])))
 
 
 def sorted_singular_values(matrix):
-    """Return singular values sorted from largest to smallest."""
+    """
+    Computes singular values sorted from largest to smallest.
+
+    Args:
+    - matrix (array-like): Matrix whose singular values are required.
+
+    Returns:
+    - singular_values (ndarray): Singular values in descending order.
+    """
     return np.linalg.svd(
         np.asarray(matrix),
         compute_uv=False,
@@ -278,6 +322,16 @@ for noise_idx, noise_level in enumerate(noise_values):
 ###############################################################################
 
 def mean_and_std(values):
+    """
+    Computes row-wise means and standard deviations.
+
+    Args:
+    - values (ndarray): Values arranged with observations along axis 1.
+
+    Returns:
+    - means (ndarray): Mean of each row.
+    - standard_deviations (ndarray): Standard deviation of each row.
+    """
     return np.mean(values, axis=1), np.std(values, axis=1)
 
 
@@ -295,7 +349,16 @@ mean_wout_std_c_ctc, std_wout_std_c_ctc = mean_and_std(wout_std_c_ctc)
 
 
 def spectrum_mean_and_std(values):
-    """Mean and standard deviation at every singular-value index."""
+    """
+    Computes statistics across trials at every singular-value index.
+
+    Args:
+    - values (ndarray): Spectra arranged with trials along axis 0.
+
+    Returns:
+    - mean_spectrum (ndarray): Mean at each singular-value index.
+    - std_spectrum (ndarray): Standard deviation at each singular-value index.
+    """
     return np.mean(values, axis=0), np.std(values, axis=0)
 
 

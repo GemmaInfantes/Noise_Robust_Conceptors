@@ -136,7 +136,17 @@ variation_percentages = 100.0 * (variation_factors - 1.0)
 
 
 def build_studied_values(mode):
-    """Return values, tick labels and title for one sensitivity parameter."""
+    """
+    Builds the tested values, tick labels, and title for one sensitivity parameter.
+
+    Args:
+    - mode (str): Parameter to vary; must be ``error``, ``window``, or ``steps``.
+
+    Returns:
+    - studied_values (ndarray): Parameter values generated from the configured variation factors.
+    - tick_labels (list of str): Plot labels showing relative and absolute parameter values.
+    - parameter_label (str): Human-readable parameter name used as the panel title.
+    """
 
     if mode == "error":
         reference_value = float(error_th)
@@ -276,7 +286,19 @@ box_width = 0.30
 ###############################################################################
 
 def add_grouped_boxplot(ax, data_without_c, data_ctc, tick_labels, title):
-    """Add the grouped Without-C/CTC boxplot to one panel."""
+    """
+    Adds a grouped Without-C/CTC boxplot to one Matplotlib panel.
+
+    Args:
+    - ax (matplotlib.axes.Axes): Axis on which to draw the boxplots.
+    - data_without_c (sequence): Without-C samples for each parameter value.
+    - data_ctc (sequence): CTC samples for each parameter value.
+    - tick_labels (sequence of str): Labels displayed at the parameter positions.
+    - title (str): Panel title.
+
+    Returns:
+    - None
+    """
 
     box_without_c = ax.boxplot(data_without_c, positions=centers - offset, widths=box_width, patch_artist=True, showmeans=False, boxprops={"linewidth": 1.4, "edgecolor": "black"}, whiskerprops={"linewidth": 1.3, "color": "black"}, capprops={"linewidth": 1.3, "color": "black"}, medianprops={"linewidth": 1.7, "color": "black"}, flierprops={"marker": "o", "markerfacecolor": color_without_c, "markeredgecolor": "black", "markersize": 3, "alpha": 0.55})
 

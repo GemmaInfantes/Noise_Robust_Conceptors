@@ -141,7 +141,15 @@ mm = np.arange(m_in, m_fin + 1, m_step, dtype=int)
 ###############################################################################
 
 def run_m_scan(noise_level):
-    """Compute Without-C references and CTC results for one noise percentage."""
+    """
+    Computes Without-C references and CTC results for one noise percentage.
+
+    Args:
+    - noise_level (float): State-noise level expressed as a percentage of the ideal-state standard deviation.
+
+    Returns:
+    - results (dict): Noise level and the mean and standard deviation of SSI and NRMSE for each method.
+    """
 
     # Without C does not depend on m: one value per ESN/noise trial.
     ssi_no_c = np.empty(trials, dtype=float)

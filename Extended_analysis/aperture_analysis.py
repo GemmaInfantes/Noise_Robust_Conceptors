@@ -117,21 +117,14 @@ if p < 1:
     raise ValueError("'p' must be at least 1.")
 
 if time_len <= max(p, 10) + washout:
-    raise ValueError(
-        "'time_len' is too short for the selected p values and washout."
-    )
+    raise ValueError("'time_len' is too short for the selected p values and washout.")
 
 
 ###############################################################################
 # Input signal
 ###############################################################################
 
-data1 = pd.read_csv(
-    DATA_DIR / "xRossler.txt",
-    sep="\t",
-    header=None,
-    index_col=None,
-)
+data1 = pd.read_csv(DATA_DIR / "xRossler.txt", sep="\t", header=None, index_col=None)
 
 data1 = data1.values[:time_len].reshape(-1, 1)
 
@@ -140,12 +133,7 @@ data1 = data1.values[:time_len].reshape(-1, 1)
 # Aperture values and matched seeds
 ###############################################################################
 
-aa = np.arange(
-    float(a_in),
-    float(a_fin) + 0.5 * float(a_step),
-    float(a_step),
-    dtype=float,
-)
+aa = np.arange(float(a_in), float(a_fin) + 0.5 * float(a_step), float(a_step), dtype=float)
 
 np.random.seed(args.seed)
 
@@ -184,25 +172,12 @@ def run_aperture_scan(p_value, calculate_ssi=True):
 
     yt_train_effective = yt_train[washout:]
 
-    eval_stop = min(
-        washout + steps,
-        len(yt_train),
-    )
-
-    y_target = np.asarray(
-        yt_train[washout:eval_stop]
-    ).ravel()
-
-    nrmse_values = np.empty(
-        (len(aa), trials),
-        dtype=float,
-    )
+    eval_stop = min(washout + steps, len(yt_train))
+    y_target = np.asarray(yt_train[washout:eval_stop]).ravel()
+    nrmse_values = np.empty((len(aa), trials), dtype=float)
 
     if calculate_ssi:
-        ssi_values = np.empty(
-            (len(aa), trials),
-            dtype=float,
-        )
+        ssi_values = np.empty((len(aa), trials), dtype=float)
     else:
         ssi_values = None
 
@@ -210,90 +185,28 @@ def run_aperture_scan(p_value, calculate_ssi=True):
         aperture = float(aperture)
 
         for esn_idx in range(trials_esn):
-            params = rnn_params(
-                N,
-                input_size,
-                output_size,
-                scaling,
-                spectral_radius,
-                alpha,
-                bias_scaling,
-                sparsity,
-                seed=seed_esn[esn_idx],
-            )
-
-            X_id = forward_rnn(
-                params,
-                ut_train,
-                42,
-                x_init=None,
-                autonomous=False,
-                conceptor=None,
-            )
-
-            std_noise = std_noise_func(
-                X_id,
-                noise_level,
-            )
-
-            C_ctc = denoising_CTC_m(
-                params,
-                ut_train,
-                std_noise,
-                aperture,
-                m,
-                corr=corr,
-            )
+            params = rnn_params(N, input_size, output_size, scaling, spectral_radius, alpha, bias_scaling, sparsity, seed=seed_esn[esn_idx])
+            X_id = forward_rnn(params, ut_train, 42, x_init=None, autonomous=False, conceptor=None)
+            std_noise = std_noise_func(X_id, noise_level)
+            C_ctc = denoising_CTC_m(params, ut_train, std_noise, aperture, m, corr=corr)
 
             for noise_idx in range(trials_noise):
                 current_seed = seed_noise[noise_idx]
                 trial_index = esn_idx * trials_noise + noise_idx
 
-                X_noi_C_ctc = forward_rnn(
-                    params,
-                    ut_train,
-                    current_seed,
-                    None,
-                    False,
-                    C_ctc,
-                    std_noise,
-                    corr=corr,
-                )
+                X_noi_C_ctc = forward_rnn(params, ut_train, current_seed, None, False, C_ctc, std_noise, corr=corr)
 
                 X_effective = X_noi_C_ctc[washout:]
 
-                params_trained_CTC, _ = ridge(
-                    reg,
-                    X_effective,
-                    yt_train_effective,
-                    step_value,
-                    params,
-                )
+                params_trained_CTC, _ = ridge(reg, X_effective, yt_train_effective, step_value, params)
 
                 if calculate_ssi:
-                    effective_ssi_steps = min(
-                        steps,
-                        len(X_id) - washout,
-                        len(X_noi_C_ctc) - washout,
-                    )
+                    effective_ssi_steps = min(steps, len(X_id) - washout, len(X_noi_C_ctc) - washout)
+                    ssi_values[a_idx, trial_index] = xcorr_PCA(X_id, X_noi_C_ctc, washout, effective_ssi_steps)
 
-                    ssi_values[a_idx, trial_index] = xcorr_PCA(
-                        X_id,
-                        X_noi_C_ctc,
-                        washout,
-                        effective_ssi_steps,
-                    )
+                y_C_ctc = np.asarray(X_noi_C_ctc[washout:eval_stop] @ params_trained_CTC["wout"].T + params_trained_CTC["bias_out"]).ravel()
 
-                y_C_ctc = np.asarray(
-                    X_noi_C_ctc[washout:eval_stop]
-                    @ params_trained_CTC["wout"].T
-                    + params_trained_CTC["bias_out"]
-                ).ravel()
-
-                nrmse_values[a_idx, trial_index] = NRMSE(
-                    y_target,
-                    y_C_ctc,
-                )
+                nrmse_values[a_idx, trial_index] = NRMSE(y_target, y_C_ctc)
 
     results = {
         "mean_nrmse": np.mean(nrmse_values, axis=1),
@@ -312,21 +225,12 @@ def run_aperture_scan(p_value, calculate_ssi=True):
 ###############################################################################
 
 # Original scan for the p selected from the terminal.
-results_selected_p = run_aperture_scan(
-    p,
-    calculate_ssi=True,
-)
+results_selected_p = run_aperture_scan(p, calculate_ssi=True)
 
 # Additional NRMSE scans for the joint p=5 and p=10 comparison.
-results_p5 = run_aperture_scan(
-    5,
-    calculate_ssi=False,
-)
+results_p5 = run_aperture_scan(5, calculate_ssi=False)
 
-results_p10 = run_aperture_scan(
-    10,
-    calculate_ssi=False,
-)
+results_p10 = run_aperture_scan(10, calculate_ssi=False)
 
 
 ###############################################################################
@@ -361,13 +265,7 @@ selected_p_results = pd.DataFrame({
     f"std_nrmse_p{p}": std_nrmse_C_ctc,
 })
 
-selected_p_results.to_csv(
-    PLOTS_DIR
-    / (
-        f"ap_scan_n{noise_tag}_p{p}_N{N}_m{m}_T{trials}_{c}.csv"
-    ),
-    index=False,
-)
+selected_p_results.to_csv(PLOTS_DIR / f"ap_scan_n{noise_tag}_p{p}_N{N}_m{m}_T{trials}_{c}.csv", index=False)
 
 p5_p10_results = pd.DataFrame({
     "aperture": aa,
@@ -377,13 +275,7 @@ p5_p10_results = pd.DataFrame({
     "std_nrmse_p10": std_nrmse_p10,
 })
 
-p5_p10_results.to_csv(
-    PLOTS_DIR
-    / (
-        f"ap_scan_n{noise_tag}_p5_p10_N{N}_m{m}_T{trials}_{c}.csv"
-    ),
-    index=False,
-)
+p5_p10_results.to_csv(PLOTS_DIR / f"ap_scan_n{noise_tag}_p5_p10_N{N}_m{m}_T{trials}_{c}.csv", index=False)
 
 
 ###############################################################################
@@ -485,10 +377,7 @@ plt.plot(
     label=rf"$C_{{ctc}}$, $p={p}$",
 )
 
-nrmse_lower = np.maximum(
-    mean_nrmse_C_ctc - std_nrmse_C_ctc,
-    0.0,
-)
+nrmse_lower = np.maximum(mean_nrmse_C_ctc - std_nrmse_C_ctc, 0.0)
 
 nrmse_upper = mean_nrmse_C_ctc + std_nrmse_C_ctc
 

@@ -11,14 +11,14 @@ from itertools import product, combinations
 
 def NRMSE(y1,y2):
     """
-    Normalized Root Mean Square Error
+    Computes the normalized root mean square error (NRMSE).
     
-   
+    Args:
     - y1 (numpy.ndarray): Reference output 
-    - y2 (numpy.ndarray):Predicted output
+    - y2 (numpy.ndarray): Predicted output
     
     Returns:
-    - nrsme: Normalized Root Mean Square Error between y1 and y2
+    - nrmse (float): Normalized root mean square error between y1 and y2.
 
     """
     y1=np.ravel(y1)
@@ -50,13 +50,17 @@ def NRMSE(y1,y2):
     
 def PCA_3D(X):
     """
-    Visualize the PCA of any matrix, and project other the conceptor in the PCA space
+    Projects a matrix into principal-component space and extracts its first three components.
+
     Args:
-    - X: (numpy.ndarray): Input matrix 
+    - X (numpy.ndarray): Input matrix with samples in rows and features in columns.
     
     
     Returns:
-    - PCA components
+    - X_pca (numpy.ndarray): Input samples represented in principal-component space.
+    - PCA1 (numpy.ndarray): Scores of the first principal component.
+    - PCA2 (numpy.ndarray): Scores of the second principal component.
+    - PCA3 (numpy.ndarray): Scores of the third principal component.
     """
     # centering the X
     X_centered = X - np.mean(X, axis=0)

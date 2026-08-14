@@ -354,7 +354,7 @@ std_C_avg = np.std(nrmse_noi_C_avg, axis=1)
 
 
 
-# ----------------------------- Plot NRMSE with CTC m --------------------------------------
+# ----------------------------- Plot NRMSE with CTC m and C ideal --------------------------------------
 plt.figure(figsize=(8,4), dpi=300)
 ax = plt.gca()
 ax.set_axisbelow(True) 

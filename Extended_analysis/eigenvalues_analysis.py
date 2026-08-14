@@ -197,6 +197,16 @@ for noise_idx, noise_level in enumerate(noise_values):
 ###############################################################################
 
 def mean_and_std(values):
+    """
+    Computes row-wise means and standard deviations.
+
+    Args:
+    - values (ndarray): Values arranged with observations along axis 1.
+
+    Returns:
+    - means (ndarray): Mean of each row.
+    - standard_deviations (ndarray): Standard deviation of each row.
+    """
     return np.mean(values, axis=1), np.std(values, axis=1)
 
 
