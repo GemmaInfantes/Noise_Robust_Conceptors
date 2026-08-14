@@ -4,7 +4,9 @@ Conceptors are a powerful neuromorphic extension of reservoir computing that ena
 
 ## Benchmark Task
 
-The benchmark task consists of one step predicting one-step-ahead and autonomous generation of the Rössler chaotic dynamics. The goal is to evaluate the proposed noise-robust conceptors against both the no-conceptor case and standard conceptors under noisy scenarios, as well as to assess their ability to improve the robustness of leaky ESNs under hardware-relevant conditions as parameter drift during operation.
+The benchmark task consists of one-step-ahead prediction and autonomous generation of the Rössler chaotic dynamics. The goal is to evaluate the proposed noise-robust conceptors against the no-conceptor case, standard conceptors, and an averaged-state conceptor ($C_{\text{avg}}$) under noisy conditions. The $C_{\text{avg}}$ approach computes the conceptor from a new state matrix obtained by averaging the reservoir states across repeated trials before calculating its correlation matrix.
+
+The benchmark also assesses the ability of the proposed method to improve the robustness of leaky ESNs under hardware-relevant perturbations, such as parameter drift during operation. Some experiments included in this repository additionally use an ideal conceptor computed from noise-free reservoir states as a reference. These comparisons are provided only to contextualize the performance of the different methods and are not part of the results presented in the paper.
 
 ---
 
@@ -12,11 +14,15 @@ The benchmark task consists of one step predicting one-step-ahead and autonomous
 
 In this task, Gaussian noise is injected into the internal states of the ESN to emulate the intrinsic noise present in analog reservoir computing implementations. The objective is to assess whether conceptors can mitigate the impact of noise on reservoir dynamics and improve output stability.
 
-The output weights ($W_{\text{out}}$) are trained using noisy reservoir states, reflecting realistic hardware conditions where noise is present during both training and inference. In the conceptor-free case, $W_{\text{out}}$ is trained directly on noisy states, while in the conceptor-based cases they are trained on the corresponding conceptor-projected noisy states.
+The output weights ($W_{\text{out}}$) are trained using noisy reservoir states, reflecting realistic hardware conditions where noise is present during both training and inference. In the conceptor-free case, $W_{\text{out}}$ is trained directly on noisy states, while in the conceptor-based cases it is trained on the corresponding conceptor-projected noisy states.
 
-Performance is first evaluated in **open-loop mode**, comparing noisy ESNs, standard conceptors, CTC-based conceptors, and a noise-free reference. This analysis shows how each method filters noise in the reservoir states. In particular, as the noise level increases, the standard conceptor tends toward the identity matrix, effectively behaving like no conceptor at all. In contrast, the CTC-based conceptor continues to effectively filter noise, producing cleaner internal representations even at high noise levels.
+The proposed CTC-based conceptor is compared with two alternative ways of computing a conceptor under noisy conditions. The standard noisy conceptor is calculated directly from the states recorded during a noisy trial. By contrast, $C_{\text{avg}}$ is computed from a new state matrix obtained by averaging the reservoir states across repeated trials. This averaging reduces uncorrelated noise before the state correlation matrix and the corresponding conceptor are calculated. The comparisons with $C_{\text{avg}}$ are included in the paper.
 
-Subsequently, the system is evaluated in **autonomous mode**, where noise effects accumulate over time and have a stronger impact on long-term stability. In this regime, the CTC-based conceptor clearly outperforms both the no-conceptor and standard conceptor cases, demonstrating that it not only denoises the internal states but also significantly enhances the overall performance and stability of the network.
+Some repository experiments also include an ideal conceptor computed from noise-free reservoir states. This ideal conceptor is used exclusively as an additional reference to assess how closely the different noisy conceptor estimates approach the noise-free case. It is not included in the paper and does not represent a hardware-compatible method, since noise-free internal states would not be available in a physical implementation.
+
+Performance is first evaluated in **open-loop mode**, comparing noisy ESNs, standard noisy conceptors, averaged-state conceptors, CTC-based conceptors, and, in selected repository experiments, the ideal conceptor reference. This analysis shows how effectively each method filters noise from the reservoir states. In particular, as the noise level increases, the standard conceptor tends toward the identity matrix, effectively behaving like the no-conceptor case. The averaging used to compute $C_{\text{avg}}$ reduces part of the uncorrelated noise, while the CTC-based conceptor directly exploits the consistency between reservoir responses across repeated trials to recover a more robust representation of the underlying dynamics.
+
+The system is subsequently evaluated in **autonomous mode**, where the effects of noise accumulate over time and have a stronger impact on long-term stability. In this regime, the CTC-based conceptor clearly outperforms both the no-conceptor and standard-conceptor cases, demonstrating that it not only filters noise from the internal states but also significantly enhances the overall performance and stability of the network. Comparisons with $C_{\text{avg}}$ provide an additional benchmark for determining whether the cross-trial formulation offers benefits beyond directly averaging the recorded states.
 
 ---
 
@@ -99,6 +105,29 @@ Results show that parameter drift significantly degrades the performance of stan
   Same as above, but for **random drift**. Produces heatmaps showing performance across noise–drift combinations.
 
 
+
+### Extended analysis
+
+- **`Extended_analysis/`**  
+  Contains supplementary analyses used to study the behaviour and limitations of CTC-based conceptors in greater detail. These scripts extend the main benchmark experiments and save their generated figures and data in **`Extended_analysis/plots_analysis/`**.
+
+  - **`CTC_analysis.py`**  
+    Studies how performance changes with the number of repeated reservoir-state realizations ($m$) used to compute the CTC conceptor. It evaluates PCA subspace similarity and NRMSE for different noise conditions.
+
+  - **`aperture_analysis.py`**  
+    Analyses the influence of the conceptor aperture on PCA subspace similarity and prediction NRMSE, including comparisons across different prediction horizons.
+
+  - **`cleaning_C_fail.py`**  
+    Investigates whether thresholding the singular or eigenvalue spectrum can remove noise-related components from the conceptor. It evaluates the resulting changes in PCA subspace similarity and NRMSE.
+
+  - **`eigenvalues_analysis.py`**  
+    Examines the eigenvalue spectrum of the cross-trial correlation matrix as the noise level increases, distinguishing between the components retained and removed during the construction of the CTC conceptor.
+
+  - **`sensitivity_analysis.py`**  
+    Evaluates the sensitivity of the autonomous prediction horizon to the parameters used in its calculation, including the error threshold, the required number of consecutive steps above the threshold, and the averaging-window length.
+
+  - **`structural_analysis.py`**  
+    Studies how increasing noise affects the singular-value spectrum of the conceptors and the trained readout parameters, including the magnitude and variability of $W_{\text{out}}$ and the output bias.
 
 ### Results
 
